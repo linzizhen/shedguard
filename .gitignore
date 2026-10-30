@@ -1,0 +1,46 @@
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 编辑器 ----
+.vscode/
+.idea/
+*.swp
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# ---- Node ----
+node_modules/
+dist/
+.next/
+
+# ---- ESP32 / PlatformIO ----
+.pio/
+.pioenvs/
+.piolibdeps/
+*.bin
+*.elf
+*.map
+
+# ---- 数据与密钥 ----
+data/
+*.db
+*.sqlite
+.env
+.env.*
+secrets.h
+config.local.*
+
+# ---- 采集的图片与视频 ----
+photos/
+captures/
+*.jpg
+*.jpeg
+*.png
+*.mp4
