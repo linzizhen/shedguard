@@ -53,10 +53,9 @@ shedguard/
   $env:GIT_SSH = "C:/windows/System32/OpenSSH/ssh.exe"
   $env:GIT_SSH_VARIANT = "ssh"
   ```
-- 远端：`git@github.com:linzizhen/-.git`（仓库名目前是 `-`，建议改成 `shedguard`）
+- 远端：`git@github.com:linzizhen/shedguard.git`
 
 ## 待确认
 
-- [ ] GitHub 仓库要不要改名（当前是 `linzizhen/-`）
 - [ ] 是否先买一只豹纹守宫（约 100–300 元，含箱体与设备总成本 500–1000 元）
 - [ ] 开发阶段先做固件还是先做后端图像分析
