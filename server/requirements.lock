@@ -30,6 +30,7 @@ Pygments==2.21.0
 pytest==9.2.0
 pytest-cov==7.1.0
 python-dotenv==1.2.4
+python-multipart==0.0.33
 PyYAML==6.0.3
 ruff==0.17.3
 SQLAlchemy==2.1.6

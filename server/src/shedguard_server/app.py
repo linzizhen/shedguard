@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -13,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
-from shedguard_server.api.routes import health
+from shedguard_server.api.routes import health, images
 from shedguard_server.config import Settings
 from shedguard_server.errors import (
     ApiError,
@@ -22,6 +21,9 @@ from shedguard_server.errors import (
     NotFoundError,
     error_payload,
 )
+from shedguard_server.ids import new_request_id
+from shedguard_server.infra.db import create_db_engine, create_session_factory
+from shedguard_server.infra.migrate import run_migrations
 from shedguard_server.logging_setup import configure_logging, request_id_var
 
 logger = logging.getLogger("shedguard.http")
@@ -41,21 +43,29 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(instance: FastAPI) -> AsyncIterator[None]:
         if create_data_dir:
             settings.data_dir.mkdir(parents=True, exist_ok=True)
+        instance.state.migration_error = None
+        try:
+            run_migrations(settings.resolved_db_url)
+        except Exception as exc:
+            instance.state.migration_error = exc
+            logger.exception("数据库迁移失败")
         logger.info("服务启动 data_dir=%s", settings.data_dir)
         yield
         logger.info("服务停止")
 
     app = FastAPI(title="shedguard-server", version=__version__, lifespan=lifespan)
     app.state.settings = settings
+    app.state.engine = create_db_engine(settings.resolved_db_url)
+    app.state.session_factory = create_session_factory(app.state.engine)
 
     async def request_context(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex
+        request_id = request.headers.get(REQUEST_ID_HEADER) or new_request_id()
         token = request_id_var.set(request_id)
         try:
             response = await call_next(request)
@@ -87,4 +97,5 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
         return _error_response(InternalError("服务内部错误"))
 
     app.include_router(health.router)
+    app.include_router(images.router)
     return app

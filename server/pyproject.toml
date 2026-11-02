@@ -12,6 +12,9 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic-settings>=2.4",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "python-multipart>=0.0.9",
     "tzdata>=2024.1",
 ]
 
@@ -46,6 +49,8 @@ strict = true
 warn_unreachable = true
 files = ["src", "tests"]
 mypy_path = "src"
+# tests/ 与 tests/integration/ 各有一个 conftest.py，显式包基址避免同名模块冲突。
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = ["uvicorn.*"]

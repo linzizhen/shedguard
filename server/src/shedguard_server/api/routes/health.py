@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Request
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 from shedguard_server.config import Settings
 from shedguard_server.errors import StorageUnavailableError
@@ -15,6 +18,15 @@ router = APIRouter(tags=["health"])
 
 def _data_dir_ready(path: Path) -> bool:
     return path.is_dir() and os.access(path, os.W_OK)
+
+
+def _database_ready(engine: Engine) -> bool:
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return False
+    return True
 
 
 @router.get("/healthz")
@@ -29,4 +41,9 @@ def readyz(request: Request) -> dict[str, str]:
     settings: Settings = request.app.state.settings
     if not _data_dir_ready(settings.data_dir):
         raise StorageUnavailableError(f"数据目录不可用: {settings.data_dir}")
+    if getattr(request.app.state, "migration_error", None) is not None:
+        raise StorageUnavailableError("数据库迁移未完成")
+    engine: Engine = request.app.state.engine
+    if not _database_ready(engine):
+        raise StorageUnavailableError("数据库不可用")
     return {"status": "ready"}
