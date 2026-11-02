@@ -15,6 +15,11 @@ DEFAULT_CAPTURE_HOUR = 20
 DEFAULT_CAPTURE_WINDOW_MINUTES = 180
 DEFAULT_DETECT_MIN_CONFIDENCE = 0.35
 DEFAULT_BACKGROUND_DAYS = 7
+DEFAULT_BASELINE_DAYS = 14
+DEFAULT_MIN_BASELINE_SAMPLES = 7
+DEFAULT_ROBUST_Z_THRESHOLD = 2.0
+DEFAULT_ALERT_MIN_SIGNALS = 2
+DEFAULT_ALERT_CONSECUTIVE_DAYS = 2
 
 
 class Settings(BaseSettings):
@@ -42,6 +47,11 @@ class Settings(BaseSettings):
         default=DEFAULT_DETECT_MIN_CONFIDENCE, ge=0.0, le=1.0
     )
     background_days: int = Field(default=DEFAULT_BACKGROUND_DAYS, ge=1, le=60)
+    baseline_days: int = Field(default=DEFAULT_BASELINE_DAYS, ge=3, le=90)
+    min_baseline_samples: int = Field(default=DEFAULT_MIN_BASELINE_SAMPLES, ge=3, le=90)
+    robust_z_threshold: float = Field(default=DEFAULT_ROBUST_Z_THRESHOLD, ge=1.0, le=6.0)
+    alert_min_signals: int = Field(default=DEFAULT_ALERT_MIN_SIGNALS, ge=1, le=6)
+    alert_consecutive_days: int = Field(default=DEFAULT_ALERT_CONSECUTIVE_DAYS, ge=1, le=7)
 
     @field_validator("timezone")
     @classmethod

@@ -1,4 +1,4 @@
-"""序列接口：按设备与日期区间返回每日代表帧。"""
+"""序列接口：按设备与日期区间返回每日代表帧与判定信号。"""
 
 from __future__ import annotations
 
@@ -7,14 +7,23 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 
-from shedguard_server.api.dependencies import get_image_repository, get_settings
+from shedguard_server.api.dependencies import (
+    get_image_repository,
+    get_judgement_service,
+    get_settings,
+)
 from shedguard_server.config import Settings
+from shedguard_server.domain.judgement import DayJudgement
 from shedguard_server.domain.models import DailyFrame
 from shedguard_server.errors import InvalidRequestError
 from shedguard_server.infra.repository import ImageRepository
+from shedguard_server.services.judgement import JudgementService, SignalReport
 from shedguard_server.services.series import SeriesService
 
 router = APIRouter(prefix="/api/v1/series", tags=["series"])
+
+#: 浮点指标输出的小数位数。
+DECIMAL_PLACES = 4
 
 
 def get_series_service(
@@ -68,3 +77,45 @@ def get_series(
         "total_days": len(frames),
         "missing_days": sum(1 for frame in frames if frame.image_id is None),
     }
+
+
+def _round_metrics(values: dict[str, float] | None) -> dict[str, float] | None:
+    if values is None:
+        return None
+    return {name: round(value, DECIMAL_PLACES) for name, value in values.items()}
+
+
+def _serialize_judgement(item: DayJudgement) -> dict[str, Any]:
+    return {
+        "date": item.local_date.isoformat(),
+        "image_id": item.image_id,
+        "metrics": _round_metrics(dict(item.metrics) if item.metrics is not None else None),
+        "z_scores": _round_metrics(dict(item.z_scores) if item.z_scores is not None else None),
+        "hits": list(item.hits),
+        "state": item.state.value,
+        "baseline_samples": item.baseline_samples,
+    }
+
+
+def _serialize_report(report: SignalReport) -> dict[str, Any]:
+    return {
+        "device_id": report.device_id,
+        "from": report.start.isoformat(),
+        "to": report.end.isoformat(),
+        "days": [_serialize_judgement(item) for item in report.days],
+        "alert_days": report.alert_days,
+        "current_state": report.current_state.value,
+    }
+
+
+@router.get("/{device_id}/signals")
+def get_signals(
+    service: Annotated[JudgementService, Depends(get_judgement_service)],
+    device_id: str,
+    from_date: Annotated[str, Query(alias="from")],
+    to_date: Annotated[str, Query(alias="to")],
+) -> dict[str, Any]:
+    start = _parse_day(from_date, "from")
+    end = _parse_day(to_date, "to")
+    report = service.signals(device_id_raw=device_id, start=start, end=end)
+    return _serialize_report(report)

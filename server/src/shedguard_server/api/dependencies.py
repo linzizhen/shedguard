@@ -12,6 +12,7 @@ from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector
 from shedguard_server.infra.repository import FrameMetricRepository, ImageRepository
 from shedguard_server.infra.storage import LocalStorage
+from shedguard_server.services.judgement import JudgementService
 
 
 def get_settings(request: Request) -> Settings:
@@ -42,3 +43,17 @@ def get_storage(settings: Annotated[Settings, Depends(get_settings)]) -> LocalSt
 def get_detector(request: Request) -> Detector:
     detector: Detector = request.app.state.detector
     return detector
+
+
+def get_judgement_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+    repository: Annotated[FrameMetricRepository, Depends(get_metric_repository)],
+) -> JudgementService:
+    return JudgementService(
+        repository,
+        baseline_days=settings.baseline_days,
+        min_samples=settings.min_baseline_samples,
+        z_threshold=settings.robust_z_threshold,
+        min_signals=settings.alert_min_signals,
+        consecutive_days=settings.alert_consecutive_days,
+    )
