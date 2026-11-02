@@ -14,7 +14,7 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径；但 Roboflow 上有一份 1,163 张、Public Domain 的蜕皮标注数据可以先用上。
 
-后端现状（`server/`）：配置校验（8 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、Alembic 迁移在启动时自动升级、CI 与 pre-commit。98 个测试，覆盖率 96.3%，ruff 与 mypy strict 全绿。
+后端现状（`server/`）：配置校验（8 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、Alembic 迁移在启动时自动升级、CI 与 pre-commit。99 个测试，覆盖率 96.3%，ruff 与 mypy strict 全绿。
 
 ## 已经定下来的决策
 
