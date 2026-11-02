@@ -10,11 +10,11 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 ## 当前阶段
 
-**Phase 0 完成 —— 后端工程骨架已落地并提交；下一步是 M2 图片上传接口（数据库、文件存储、`POST /api/v1/images`）。**
+**Phase 1 的 M2 完成 —— 后端已能接收、去重、归档并按天查询图片；下一步是 M3 判定链路的输入准备（每日对比所需的数据导出与基线）。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径；但 Roboflow 上有一份 1,163 张、Public Domain 的蜕皮标注数据可以先用上。
 
-后端骨架现状（`server/`）：配置校验（8 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、CI 与 pre-commit。33 个测试，覆盖率 96.5%，ruff 与 mypy strict 全绿。
+后端现状（`server/`）：配置校验（8 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、Alembic 迁移在启动时自动升级、CI 与 pre-commit。98 个测试，覆盖率 96.3%，ruff 与 mypy strict 全绿。
 
 ## 已经定下来的决策
 
@@ -48,12 +48,13 @@ shedguard/
 ├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
 ├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── firmware/README.md        # ESP32-S3-EYE 固件占位
-├── server/                   # 后端服务（Phase 0 骨架已落地）
-│   ├── README.md             # 运行、配置与开发说明
+├── server/                   # 后端服务（图片接入已完成）
+│   ├── README.md             # 运行、接口、配置与开发说明
 │   ├── pyproject.toml        # 依赖、ruff、mypy、pytest、覆盖率配置
+│   ├── alembic.ini           # 迁移配置
 │   ├── requirements.lock     # 完整依赖锁定
 │   ├── .env.example          # 配置样例
-│   ├── src/shedguard_server/ # app、config、errors、logging_setup、api/routes
+│   ├── src/shedguard_server/ # api、domain、services、infra、migrations
 │   └── tests/                # unit 与 integration
 └── app/README.md             # 前端占位
 ```
@@ -62,10 +63,10 @@ shedguard/
 
 分阶段计划、依赖关系与验收标准见 `docs/roadmap.md`，这里只列最近几步：
 
-1. 后端图片接收服务（Phase 0–1）：Phase 0 骨架已完成；剩 M2 上传接口（数据库、文件存储、`POST /api/v1/images`）与 M3 查询接口
+1. 后端图片接收服务（Phase 0–1）：M1 骨架与 M2 图片接入已完成；剩 M3 为判定链路准备输入（导出每日图集、建立基线）
 2. 数据流提前启动（Phase 2）：不等固件，先用手机临时机位开始积累影像
 3. 导出 Roboflow `capstone-habql/gecko_1`（1,163 张，Public Domain）：用于第一层门控预训练，需注册免费账号，与主线并行
-4. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图
+4. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图（上传协议已就绪，见 `server/README.md` 的接口一节）
 5. 知识库核实（Phase 9）：填完 `docs/gecko-params.md` 的 `[待核实]` 项，可与其他步骤并行
 
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
