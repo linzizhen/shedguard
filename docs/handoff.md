@@ -10,11 +10,11 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 ## 当前阶段
 
-**Phase 1 的 M2 完成 —— 后端已能接收、去重、归档并按天查询图片；下一步是 M3 判定链路的输入准备（每日对比所需的数据导出与基线）。**
+**Phase 1 完成（M1 骨架 → M2 图片接入 → M3 时序输入层）—— 后端已能收图、去重、归档、按天查询，并把每天的照片收敛成序列、记录蜕皮事件；下一步是 Phase 2 的数据流提前启动。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径；但 Roboflow 上有一份 1,163 张、Public Domain 的蜕皮标注数据可以先用上。
 
-后端现状（`server/`）：配置校验（8 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、Alembic 迁移在启动时自动升级、CI 与 pre-commit。99 个测试，覆盖率 96.3%，ruff 与 mypy strict 全绿。
+后端现状（`server/`）：配置校验（10 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`（蜕皮事件记录）、Alembic 两次迁移在启动时自动升级、CI 与 pre-commit。155 个测试，覆盖率 97.0%，ruff 与 mypy strict 全绿。
 
 ## 已经定下来的决策
 
@@ -44,7 +44,8 @@ shedguard/
 │   ├── handoff.md            # 本文件
 │   ├── roadmap.md            # 项目路线图（分阶段规划与验收标准）
 │   └── specs/
-│       └── 2026-11-02-server-image-ingest-design.md   # 后端图片接入服务设计规格
+│       ├── 2026-11-02-server-image-ingest-design.md   # 后端图片接入服务设计规格
+│       └── 2026-11-02-series-and-events-design.md     # 每日序列与蜕皮事件设计规格
 ├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
 ├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── firmware/README.md        # ESP32-S3-EYE 固件占位
@@ -63,7 +64,7 @@ shedguard/
 
 分阶段计划、依赖关系与验收标准见 `docs/roadmap.md`，这里只列最近几步：
 
-1. 后端图片接收服务（Phase 0–1）：M1 骨架与 M2 图片接入已完成；剩 M3 为判定链路准备输入（导出每日图集、建立基线）
+1. ~~后端图片接收服务（Phase 0–1）~~ —— 已完成：M1 骨架、M2 图片接入、M3 每日序列与蜕皮事件
 2. 数据流提前启动（Phase 2）：不等固件，先用手机临时机位开始积累影像
 3. 导出 Roboflow `capstone-habql/gecko_1`（1,163 张，Public Domain）：用于第一层门控预训练，需注册免费账号，与主线并行
 4. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图（上传协议已就绪，见 `server/README.md` 的接口一节）

@@ -1,13 +1,17 @@
 # shedguard-server
 
-爬宠蜕皮预警系统的后端图片接入服务。负责接收设备上传的照片、按日期与设备归档、把元数据写入 SQLite，并为后续的每日对比分析提供查询接口。
+爬宠蜕皮预警系统的后端图片接入服务。负责接收设备上传的照片、按日期与设备归档、把元数据写入 SQLite，并把每天的照片收敛成可供每日对比分析消费的序列，同时记录人工标注的蜕皮事件。
 
-设计依据见 [`../docs/specs/2026-11-02-server-image-ingest-design.md`](../docs/specs/2026-11-02-server-image-ingest-design.md)。
+设计依据：
+
+- [`../docs/specs/2026-11-02-server-image-ingest-design.md`](../docs/specs/2026-11-02-server-image-ingest-design.md)（M1/M2 图片接入）
+- [`../docs/specs/2026-11-02-series-and-events-design.md`](../docs/specs/2026-11-02-series-and-events-design.md)（M3 时序输入层）
 
 ## 当前进度
 
 - M1（工程骨架）：配置校验、结构化日志、统一错误契约、健康检查——已完成。
 - M2（图片接入）：上传、幂等去重、按天列表、取原图与元数据、Alembic 迁移——已完成。
+- M3（时序输入层）：每日代表帧选择、区间序列查询、蜕皮事件记录——已完成。
 
 ## 运行
 
@@ -67,6 +71,43 @@ curl.exe -X POST http://127.0.0.1:8000/api/v1/images -H "X-Device-Id: cam-1" -F 
 - `GET /api/v1/images/{id}`：返回原图字节，带 `ETag`（SHA-256）与 `Cache-Control: immutable`。
 - `GET /api/v1/images/{id}/metadata`：返回该图的元数据 JSON。
 
+### 每日序列
+
+`GET /api/v1/series?device_id=cam-1&from=2026-11-01&to=2026-11-14`
+
+把区间内每一天收敛成一条代表帧，无图日也返回（`image_id` 为 `null`）：
+
+```json
+{
+  "device_id": "cam-1",
+  "from": "2026-11-01",
+  "to": "2026-11-03",
+  "days": [
+    {"date": "2026-11-01", "image_id": "01J...", "captured_at_utc": "2026-11-01T12:03:00Z", "in_window": true, "total_images": 3},
+    {"date": "2026-11-02", "image_id": null, "captured_at_utc": null, "in_window": false, "total_images": 0}
+  ],
+  "total_days": 3,
+  "missing_days": 1
+}
+```
+
+代表帧规则：取离当天目标时刻（`SHEDGUARD_CAPTURE_HOUR`，默认 20:00，按 `SHEDGUARD_TIMEZONE` 解释）最近的一张，窗口为 ±`SHEDGUARD_CAPTURE_WINDOW_MINUTES`（默认 180 分钟）。
+
+- 窗口内有图：`in_window: true`。
+- 窗口内无图：仍返回当天最近的一张，但标 `in_window: false`，由消费方决定是否降级使用。
+- 区间天数上限 366。
+
+### 蜕皮事件
+
+- `PUT /api/v1/shed-events/{device_id}/{event_date}`：写入或覆盖，请求体 `{"outcome": "...", "notes": "..."}`。新建 `201`，覆盖 `200` 且 `id` 不变。
+- `GET /api/v1/shed-events?device_id=cam-1&from=2026-10-01&to=2026-11-30`：按设备与区间查询，按日期降序。
+
+`outcome` 四选一：`completed`（蜕完）、`partial`（有残留）、`stuck`（卡皮）、`unknown`（事后补录）。`notes` 上限 2000 字符。
+
+```powershell
+curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Content-Type: application/json" -d '{\"outcome\":\"completed\",\"notes\":\"整体顺利\"}'
+```
+
 ### 错误码
 
 | 码 | 状态 | 触发场景 |
@@ -90,7 +131,9 @@ curl.exe -X POST http://127.0.0.1:8000/api/v1/images -H "X-Device-Id: cam-1" -F 
 | `SHEDGUARD_HOST` | `127.0.0.1` | 监听地址 |
 | `SHEDGUARD_PORT` | `8000` | 监听端口 |
 | `SHEDGUARD_MAX_UPLOAD_BYTES` | `10485760` | 单张图片上限 |
-| `SHEDGUARD_TIMEZONE` | `Asia/Shanghai` | 计算 `local_date` 用 |
+| `SHEDGUARD_TIMEZONE` | `Asia/Shanghai` | 计算 `local_date` 与代表帧目标时刻用 |
+| `SHEDGUARD_CAPTURE_HOUR` | `20` | 每日代表帧的目标整点（0–23） |
+| `SHEDGUARD_CAPTURE_WINDOW_MINUTES` | `180` | 目标时刻两侧的容差窗口（0–720） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
@@ -139,8 +182,10 @@ server/
     errors.py           错误契约
     logging_setup.py    结构化日志
     ids.py              请求 ID 生成
-    api/routes/         HTTP 路由
-    domain/             领域规则（校验、命名、时间）
+    api/
+      dependencies.py   依赖装配
+      routes/           HTTP 路由（health / images / series / shed-events）
+    domain/             领域规则（校验、命名、时间、序列、事件）
     services/           用例编排
     infra/              数据库、存储、迁移执行
     migrations/         Alembic 版本
