@@ -15,9 +15,11 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-DATASET_YAML = Path("ml/datasets/gecko-det/dataset.yaml")
-RUNS_DIR = Path("ml/runs")
-MODELS_DIR = Path("ml/models")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+DATASET_YAML = PROJECT_ROOT / "ml" / "datasets" / "gecko-det" / "dataset.yaml"
+RUNS_DIR = PROJECT_ROOT / "ml" / "runs"
+MODELS_DIR = PROJECT_ROOT / "ml" / "models"
 BASE_WEIGHTS = "yolov8n.pt"
 SEED = 42
 

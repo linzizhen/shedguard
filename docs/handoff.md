@@ -10,11 +10,13 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 ## 当前阶段
 
-**Phase 1 完成（M1 骨架 → M2 图片接入 → M3 时序输入层 → M5 信号层）—— 后端已能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件，并对单帧算出体表指标；下一步是 M4 训练定位模型，再进 M6 时序判定。**
+**Phase 1 完成（M1 骨架 → M2 图片接入 → M3 时序输入层 → M5 信号层 → M4 定位模型）—— 后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标；定位模型已训练并在服务端跑通。下一步是 M6 时序判定层。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`，评估结论是**只能用来训「守宫在哪」，不能用来训「是否蜕皮」**：短边 < 400px 占 90.9%，分辨率与类别强耦合，直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习。
 
 后端现状（`server/`）：配置校验（13 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`、`POST /api/v1/analysis/{image_id}`（六项体表指标 + 曝光归一化）、Alembic 三次迁移在启动时自动升级、CI 与 pre-commit。177 个测试，覆盖率 95.8%，ruff 与 mypy strict 全绿。
+
+定位模型（`ml/`）：`yolov8n` 微调 50 轮（RTX 5070 上 3.6 分钟），单类别 `gecko`，测试集 `mAP50 = 0.902 / mAP50-95 = 0.578`，通过 0.85 验收线。导出 `ml/models/gecko-det.onnx`（12.2 MB，不进仓库），已用服务端 `OnnxDetector` 加载真实网图验证，8/8 检出。已知短板：训练集全是可见光，一张红外图都没有。
 
 ## 已经定下来的决策
 
@@ -52,7 +54,10 @@ shedguard/
 ├── data/
 │   └── raw/gecko1/           # Roboflow gecko_1 原始数据（1,163 张，不入库）
 ├── ml/
+│   ├── README.md                     # 数据集构建、训练、产物与已知限制
+│   ├── requirements.txt              # torch / torchvision / ultralytics（仅训练机）
 │   ├── prepare_detection_dataset.py  # 分割标注 → 检测框，构建单类别数据集
+│   ├── train_detector.py             # 训 YOLOv8n 并导出 ONNX
 │   └── datasets/gecko-det/           # 转换产物（1,120 图 / 1,124 框，不入库）
 ├── firmware/README.md        # ESP32-S3-EYE 固件占位
 ├── server/                   # 后端服务（图片接入与分析已完成）
@@ -71,7 +76,7 @@ shedguard/
 分阶段计划、依赖关系与验收标准见 `docs/roadmap.md`，这里只列最近几步：
 
 1. ~~后端图片接收服务（Phase 0–1）~~ —— 已完成：M1 骨架、M2 图片接入、M3 每日序列与蜕皮事件、M5 信号层
-2. M4 定位模型训练：`ml/datasets/gecko-det/` 已构建（1,120 图 / 1,124 框），装 torch + ultralytics 后训 YOLOv8n 单类别，导出 ONNX 供 `SHEDGUARD_DETECTOR_MODEL` 加载
+2. ~~M4 定位模型训练~~ —— 已完成：测试集 mAP50 0.902，ONNX 已接入服务端并验证
 3. M6 时序判定层：用指标序列做稳健 Z 分数，定义告警规则与趋势端点
 4. ~~导出 Roboflow `capstone-habql/gecko_1`~~ —— 已完成，落在 `data/raw/gecko1/`
 5. 数据流提前启动（Phase 2）：不等固件，先用手机临时机位开始积累影像
@@ -89,6 +94,10 @@ shedguard/
   ```
 - 远端：`git@github.com:linzizhen/shedguard.git`
 - 本机没有可用的全局 `python` 命令（只有 Microsoft Store 占位别名），执行 Python 相关命令需显式指定解释器。
+- 显卡是 RTX 5070（12 GB，compute capability 12.0）。**PyPI 上的 Windows `torch` 是纯 CPU 版**，训练必须从 PyTorch 官方源装 CUDA 版：`--index-url https://download.pytorch.org/whl/cu130`，且要显式写 `torch==2.14.1+cu130`（该通道最高只到 2.14.1，不写版本号 pip 会认为已装的 2.15.0 更新而跳过）。
+- **YOLO 训练必须以完整权限运行**：`ultralytics` 在扫标签缓存与建 DataLoader 时用 `multiprocessing` 创建命名管道，沙箱 `workspace-write` 模式报 `PermissionError: [WinError 5]`。
+- 训练前把缓存目录指向仓库内：`$env:MPLCONFIGDIR=".tmp\mpl"`（默认写 `C:\Users\...\.matplotlib`，沙箱只读）、`$env:YOLO_CONFIG_DIR=".tmp\ultralytics"`。
+- 机器上设了指向 `127.0.0.1:7897` 的 `HTTP_PROXY`/`HTTPS_PROXY`，但代理常没在跑。所有 `pip` 与 `httpx` 命令前要清空这些变量，`httpx` 还要 `trust_env=False`。
 
 ## 待确认
 

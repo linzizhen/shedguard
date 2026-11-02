@@ -21,6 +21,15 @@
 .\.venv\Scripts\python.exe -m pip install -r ml\requirements.txt
 ```
 
+训练走 GPU 时要注意：PyPI 上的 Windows `torch` 是**纯 CPU 版**（版本号带 `+cpu`，`torch.cuda.is_available()` 返回 `False`）。必须从 PyTorch 官方源装 CUDA 版：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --index-url https://download.pytorch.org/whl/cu130 `
+    "torch==2.14.1+cu130" "torchvision==0.29.1+cu130"
+```
+
+`cu130` 通道当前最高只到 `torch 2.14.1`，比 PyPI 的 `2.15.0` 低一个次要版本，`ultralytics` 兼容。wheel 约 2.5 GB，装之前先确认磁盘与网络。
+
 `ultralytics` 会连带装 `opencv-python`（带 GUI 版），覆盖服务端要的 `opencv-python-headless`。两者提供同一个 `cv2` 模块，服务端只用到 `imdecode`/`cvtColor`，功能不受影响。
 
 ## 构建数据集
@@ -42,6 +51,12 @@
 ## 训练
 
 ```powershell
+# 训练进程会用 multiprocessing 建命名管道，DSH 沙箱的 workspace-write 模式下
+# 会报 PermissionError: [WinError 5]，必须以完整权限运行。
+$env:MPLCONFIGDIR=".tmp\mpl"                 # 默认写到 C:\Users\...\.matplotlib，沙箱只读
+$env:YOLO_CONFIG_DIR=".tmp\ultralytics"
+$env:TEMP=".tmp"; $env:TMP=".tmp"
+
 .\.venv\Scripts\python.exe ml\train_detector.py --epochs 50 --batch 16
 ```
 
@@ -55,7 +70,20 @@
 
 验收线：`mAP50 ≥ 0.85`。单类别、构图简单，低于这个值优先怀疑数据转换而不是模型。
 
-`ml/datasets/`、`ml/runs/`、`*.onnx`、`*.pt` 都在 `.gitignore` 里，不进仓库。
+`ml/datasets/`、`ml/runs/`、`*.onnx`、`*.pt` 都在 `.gitignore` 里，不进仓库。模型不入库是因为重训只要几分钟，而 12 MB 的二进制文件放进 Git 只会拖慢克隆。
+
+## 训练结果（2026-11-02，第一版）
+
+RTX 5070 上 50 个 epoch 用了 **3.6 分钟**，`yolov8n.pt` 微调，`imgsz=640`、`batch=16`、`seed=42`、`patience=20`，实际跑满 50 轮未触发早停。
+
+| 划分 | 图片 | 实例 | Precision | Recall | mAP50 | mAP50-95 |
+|---|---|---|---|---|---|---|
+| valid | 349 | 350 | 0.912 | 0.914 | 0.946 | 0.586 |
+| test | 112 | 114 | 0.850 | 0.868 | **0.902** | 0.578 |
+
+测试集 `mAP50 = 0.902`，通过验收线。导出 ONNX 12.2 MB，服务端 `OnnxDetector` 直接加载，拿测试集真图跑 8 张全部检出（置信度 0.63–0.92，框面积占比 0.15–0.85）。
+
+valid 比 test 高 4.4 个点。数据只有 1,120 张、来源又杂，这个差距在噪声范围内，但还是说明**未见过的构图会掉点**——真实机位下会掉得更多，因为一张红外图都没训过。
 
 ## 已知限制
 
