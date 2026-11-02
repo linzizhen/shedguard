@@ -52,3 +52,9 @@ captures/
 *.jpeg
 *.png
 *.mp4
+
+# ---- 机器学习产物 ----
+ml/datasets/
+ml/runs/
+*.onnx
+*.pt
