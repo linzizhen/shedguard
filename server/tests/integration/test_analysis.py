@@ -7,6 +7,7 @@ from typing import cast
 import cv2
 import httpx
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from shedguard_server.domain.detection import Detection
@@ -97,11 +98,14 @@ def test_second_day_uses_background_reference(client: TestClient) -> None:
         client, make_jpeg(brightness=100), captured_at="2026-10-31T20:00:00+08:00"
     ).json()
     bright = _upload(
-        client, make_jpeg(brightness=160), captured_at="2026-11-01T20:00:00+08:00"
+        client, make_jpeg(brightness=130), captured_at="2026-11-01T20:00:00+08:00"
     ).json()
-    _analyze(client, dark["id"])
+    dark_body = _analyze(client, dark["id"]).json()
 
     body = _analyze(client, bright["id"]).json()
 
+    assert dark_body["normalized"] is False
     assert body["normalized"] is True
-    assert body["exposure_scale"] < 1.0
+    assert body["exposure_scale"] > 1.0
+    # 归一化后应当回到基线的亮度水平，否则说明曝光校正方向反了
+    assert body["lightness_mean"] == pytest.approx(dark_body["lightness_mean"], abs=3.0)

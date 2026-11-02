@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import cv2
 import numpy as np
 from numpy.typing import NDArray
 
 from shedguard_server.domain.detection import Detection
-from shedguard_server.domain.imaging import ImageFrame
+from shedguard_server.domain.imaging import FloatImage, ImageFrame
 
 BOX_INSET_RATIO = 0.1
 HIGH_LIGHT_THRESHOLD = 80.0
@@ -53,9 +54,26 @@ def _body_box(detection: Detection, frame: ImageFrame) -> tuple[int, int, int, i
     return inner_x1, inner_y1, inner_x2, inner_y2
 
 
+def _srgb_to_linear(rgb: NDArray[np.float32]) -> NDArray[np.float32]:
+    """sRGB 编码值（0–1）转线性光。"""
+    return np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4).astype(
+        np.float32
+    )
+
+
+def _linear_to_srgb(linear: NDArray[np.float32]) -> NDArray[np.float32]:
+    """线性光（0–1）转 sRGB 编码值。"""
+    encoded = np.where(
+        linear <= 0.0031308,
+        linear * 12.92,
+        1.055 * np.power(np.maximum(linear, 0.0), 1 / 2.4) - 0.055,
+    )
+    return cast(FloatImage, encoded.astype(np.float32))
+
+
 def _lab_lightness(rgb: NDArray[np.float32]) -> NDArray[np.float32]:
     """CIE 1976 L*，取值 0–100。"""
-    linear = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    linear = _srgb_to_linear(rgb)
     luminance = (
         linear[..., 0] * 0.2126 + linear[..., 1] * 0.7152 + linear[..., 2] * 0.0722
     ).astype(np.float32)
@@ -66,7 +84,20 @@ def _lab_lightness(rgb: NDArray[np.float32]) -> NDArray[np.float32]:
         np.cbrt(np.maximum(luminance, 0.0)),
         luminance / (3.0 * delta * delta) + 4.0 / 29.0,
     )
-    return np.clip(116.0 * warped - 16.0, 0.0, 100.0).astype(np.float32)
+    return cast(
+        FloatImage, np.clip(116.0 * warped - 16.0, 0.0, 100.0).astype(np.float32)
+    )
+
+
+def lstar_to_luminance(lstar: float) -> float:
+    """把 CIE L* 反算成相对亮度 Y（0–1）。
+
+    曝光漂移是乘性的，只在**线性光**空间里比值才有意义；
+    L* 经过三次方根变换，直接比 L* 会低估亮部变化。
+    """
+    if lstar <= 8.0:
+        return max(lstar / 903.3, 0.0)
+    return float(((lstar + 16.0) / 116.0) ** 3)
 
 
 def _hue_entropy(hue: NDArray[np.uint8]) -> float:
@@ -88,11 +119,14 @@ def compute_metrics(
     """计算一帧的体表信号。
 
     `exposure_scale` 是当天的曝光系数：画面比基线亮多少倍，就除以多少，
-    把「灯光变亮」与「体表变白」分开。
+    把「灯光变亮」与「体表变白」分开。除法在**线性光**空间做，
+    否则 sRGB 的伽马会把校正量放大。
     """
     rgb = frame.rgb.astype(np.float32) / 255.0
-    if exposure_scale > 0:
-        rgb = np.clip(rgb / exposure_scale, 0.0, 1.0)
+    if exposure_scale > 0 and exposure_scale != 1.0:
+        linear = _srgb_to_linear(rgb)
+        linear = np.clip(linear / exposure_scale, 0.0, 1.0)
+        rgb = _linear_to_srgb(linear)
     lightness = _lab_lightness(rgb)
 
     x1, y1, x2, y2 = _body_box(detection, frame)

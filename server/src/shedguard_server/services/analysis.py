@@ -8,7 +8,7 @@ from typing import Final
 
 from shedguard_server.domain.detection import Detection, Detector
 from shedguard_server.domain.imaging import ImageFrame
-from shedguard_server.domain.metrics import compute_metrics
+from shedguard_server.domain.metrics import compute_metrics, lstar_to_luminance
 from shedguard_server.domain.models import FrameMetric, ImageRecord
 from shedguard_server.errors import NotFoundError
 from shedguard_server.infra.imaging import decode_image
@@ -102,13 +102,21 @@ class AnalysisService:
         history = self._metrics.recent_background(
             record.device_id, before=record.local_date, days=self._background_days
         )
-        if not history or probe.background_lightness <= 0:
+        if not history:
             return 1.0, False
 
-        reference = statistics.median(history)
-        scale = reference / probe.background_lightness
-        if scale <= 0:
+        probe_luminance = lstar_to_luminance(probe.background_lightness)
+        if probe_luminance <= 0:
             return 1.0, False
+
+        reference_luminance = statistics.median(
+            lstar_to_luminance(value) for value in history
+        )
+        if reference_luminance <= 0:
+            return 1.0, False
+
+        # 语义是「当天比基线亮多少倍」，除以它就能把当天拉回基线。
+        scale = probe_luminance / reference_luminance
         return min(max(scale, MIN_EXPOSURE_SCALE), MAX_EXPOSURE_SCALE), True
 
     def _empty_metric(

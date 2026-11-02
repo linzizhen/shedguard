@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
 from shedguard_server.domain.detection import Detection
 from shedguard_server.domain.imaging import ImageFrame
-from shedguard_server.domain.metrics import compute_metrics
+from shedguard_server.domain.metrics import compute_metrics, lstar_to_luminance
 
 BODY_BOX = Detection(x1=8, y1=8, x2=56, y2=56, confidence=0.9)
 
@@ -88,3 +90,15 @@ def test_detection_area() -> None:
 
     assert detection.box == (10, 20, 40, 60)
     assert detection.area == 30 * 40
+
+
+def test_lstar_to_luminance_hits_bounds() -> None:
+    assert lstar_to_luminance(100.0) == pytest.approx(1.0, abs=0.01)
+    assert lstar_to_luminance(0.0) == pytest.approx(0.0, abs=0.001)
+
+
+def test_lstar_to_luminance_is_monotonic() -> None:
+    values = [lstar_to_luminance(value) for value in (20.0, 40.0, 60.0, 80.0)]
+
+    assert values == sorted(values)
+    assert all(later > earlier for earlier, later in itertools.pairwise(values))
