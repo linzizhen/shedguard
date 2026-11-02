@@ -34,6 +34,15 @@ def test_json_formatter_emits_required_fields() -> None:
     assert payload["ts"].endswith("+08:00")
 
 
+def test_json_formatter_output_is_ascii_only() -> None:
+    """日志会落到管道与文件，纯 ASCII 输出可避免 Windows 控制台编码错配。"""
+    rendered = JsonFormatter().format(_make_record())
+
+    rendered.encode("ascii")  # 不能编码即失败
+    assert "收到图片" not in rendered
+    assert "\\u6536" in rendered
+
+
 def test_request_id_is_injected_from_contextvar() -> None:
     token = request_id_var.set("req-abc")
     try:

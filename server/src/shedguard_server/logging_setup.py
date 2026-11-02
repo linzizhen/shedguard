@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sys
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TextIO
 from zoneinfo import ZoneInfo
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
@@ -34,7 +35,8 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
-        return json.dumps(payload, ensure_ascii=False)
+        # 结构化日志走管道与文件，统一转义非 ASCII，避免 Windows 控制台编码不一致。
+        return json.dumps(payload, ensure_ascii=True)
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -52,6 +54,15 @@ class ConsoleFormatter(logging.Formatter):
         return super().format(record)
 
 
+def _ensure_utf8(stream: TextIO) -> TextIO:
+    """Windows 下 stdout 默认按 GBK 编码，改成 UTF-8 以免中文日志乱码。"""
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        with contextlib.suppress(ValueError, OSError):
+            reconfigure(encoding="utf-8", errors="replace")
+    return stream
+
+
 def configure_logging(
     level: str = "INFO",
     fmt: Literal["json", "console"] = "json",
@@ -65,7 +76,7 @@ def configure_logging(
         if getattr(handler, "_shedguard", False):
             root.removeHandler(handler)
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(_ensure_utf8(sys.stdout))
     handler._shedguard = True  # type: ignore[attr-defined]
     handler.setFormatter(JsonFormatter(tz) if fmt == "json" else ConsoleFormatter(tz))
     root.addHandler(handler)
