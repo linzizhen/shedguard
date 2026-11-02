@@ -36,6 +36,7 @@ data/
 .env.*
 secrets.h
 config.local.*
+.tmp/
 
 # ---- 采集的图片与视频 ----
 photos/
