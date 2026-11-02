@@ -60,3 +60,31 @@ class ShedEvent:
     notes: str | None
     created_at_utc: datetime
     updated_at_utc: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class FrameMetric:
+    """一天一帧的体表信号。
+
+    `detected` 为 False 时，框与所有指标都是 None —— 表示这天有图，
+    但画面里没找到守宫。判定层会跳过这种帧，而不是把它当成「正常」。
+    """
+
+    image_id: str
+    device_id: str
+    local_date: date
+    detected: bool
+    box: tuple[int, int, int, int] | None
+    detector_name: str
+    detector_confidence: float | None
+    normalized: bool
+    exposure_scale: float
+    lightness_mean: float | None
+    lightness_std: float | None
+    saturation_mean: float | None
+    high_light_ratio: float | None
+    edge_density: float | None
+    color_entropy: float | None
+    background_lightness: float | None
+    computed_at_utc: datetime
+    metrics_version: str

@@ -13,6 +13,8 @@ DEFAULT_TIMEZONE = "Asia/Shanghai"
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 DEFAULT_CAPTURE_HOUR = 20
 DEFAULT_CAPTURE_WINDOW_MINUTES = 180
+DEFAULT_DETECT_MIN_CONFIDENCE = 0.35
+DEFAULT_BACKGROUND_DAYS = 7
 
 
 class Settings(BaseSettings):
@@ -35,6 +37,11 @@ class Settings(BaseSettings):
     log_format: Literal["json", "console"] = "json"
     capture_hour: int = Field(default=DEFAULT_CAPTURE_HOUR, ge=0, le=23)
     capture_window_minutes: int = Field(default=DEFAULT_CAPTURE_WINDOW_MINUTES, ge=0, le=720)
+    detector_model: str = ""
+    detect_min_confidence: float = Field(
+        default=DEFAULT_DETECT_MIN_CONFIDENCE, ge=0.0, le=1.0
+    )
+    background_days: int = Field(default=DEFAULT_BACKGROUND_DAYS, ge=1, le=60)
 
     @field_validator("timezone")
     @classmethod

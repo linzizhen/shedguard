@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -47,3 +47,37 @@ class ShedEventRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"ShedEventRow(id={self.id!r}, date={self.event_date!r})"
+
+
+class FrameMetricRow(Base):
+    """一天一帧的体表信号。字段与类型见核心链路规格第 5.3 节。"""
+
+    __tablename__ = "frame_metrics"
+
+    image_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("images.id"), primary_key=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    local_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    detected: Mapped[int] = mapped_column(Integer, nullable=False)
+    box_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detector_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    detector_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    normalized: Mapped[int] = mapped_column(Integer, nullable=False)
+    exposure_scale: Mapped[float] = mapped_column(Float, nullable=False)
+    lightness_mean: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lightness_std: Mapped[float | None] = mapped_column(Float, nullable=True)
+    saturation_mean: Mapped[float | None] = mapped_column(Float, nullable=True)
+    high_light_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    edge_density: Mapped[float | None] = mapped_column(Float, nullable=True)
+    color_entropy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    background_lightness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    computed_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    metrics_version: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        Index("ix_frame_metrics_device_date", "device_id", "local_date"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"FrameMetricRow(image_id={self.image_id!r}, date={self.local_date!r})"

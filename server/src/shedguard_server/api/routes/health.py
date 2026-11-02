@@ -43,6 +43,9 @@ def readyz(request: Request) -> dict[str, str]:
         raise StorageUnavailableError(f"数据目录不可用: {settings.data_dir}")
     if getattr(request.app.state, "migration_error", None) is not None:
         raise StorageUnavailableError("数据库迁移未完成")
+    detector_error = getattr(request.app.state, "detector_error", None)
+    if detector_error is not None:
+        raise StorageUnavailableError("检测模型加载失败")
     engine: Engine = request.app.state.engine
     if not _database_ready(engine):
         raise StorageUnavailableError("数据库不可用")

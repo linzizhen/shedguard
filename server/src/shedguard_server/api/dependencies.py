@@ -1,4 +1,4 @@
-"""HTTP 层共享依赖：配置、数据库会话、仓储与存储。"""
+"""HTTP 层共享依赖：配置、数据库会话、仓储、存储与检测器。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session, sessionmaker
 
 from shedguard_server.config import Settings
-from shedguard_server.infra.repository import ImageRepository
+from shedguard_server.domain.detection import Detector
+from shedguard_server.infra.repository import FrameMetricRepository, ImageRepository
 from shedguard_server.infra.storage import LocalStorage
 
 
@@ -28,5 +29,16 @@ def get_image_repository(session: Annotated[Session, Depends(get_session)]) -> I
     return ImageRepository(session)
 
 
+def get_metric_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> FrameMetricRepository:
+    return FrameMetricRepository(session)
+
+
 def get_storage(settings: Annotated[Settings, Depends(get_settings)]) -> LocalStorage:
     return LocalStorage(settings.data_dir)
+
+
+def get_detector(request: Request) -> Detector:
+    detector: Detector = request.app.state.detector
+    return detector

@@ -16,6 +16,10 @@ dependencies = [
     "alembic>=1.13",
     "python-multipart>=0.0.9",
     "tzdata>=2024.1",
+    "numpy>=2.0",
+    "pillow>=11",
+    "opencv-python-headless>=4.10",
+    "onnxruntime>=1.20",
 ]
 
 [project.optional-dependencies]
@@ -53,7 +57,7 @@ mypy_path = "src"
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["uvicorn.*"]
+module = ["uvicorn.*", "cv2.*", "onnxruntime.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

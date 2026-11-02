@@ -1,15 +1,16 @@
-"""持久化：把领域值对象与 images 表互相转换。"""
+"""持久化：把领域值对象与数据表互相转换。"""
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+import json
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from shedguard_server.domain.models import ImageRecord, ShedEvent
-from shedguard_server.infra.tables import ImageRow, ShedEventRow
+from shedguard_server.domain.models import FrameMetric, ImageRecord, ShedEvent
+from shedguard_server.infra.tables import FrameMetricRow, ImageRow, ShedEventRow
 
 
 def _parse_utc(value: str) -> datetime:
@@ -179,3 +180,100 @@ class ShedEventRepository:
             .order_by(ShedEventRow.event_date.desc(), ShedEventRow.id)
         ).all()
         return [_to_event(row) for row in rows]
+
+
+def _to_metric(row: FrameMetricRow) -> FrameMetric:
+    box: tuple[int, int, int, int] | None = None
+    if row.box_json is not None:
+        raw = json.loads(row.box_json)
+        box = (int(raw[0]), int(raw[1]), int(raw[2]), int(raw[3]))
+    return FrameMetric(
+        image_id=row.image_id,
+        device_id=row.device_id,
+        local_date=date.fromisoformat(row.local_date),
+        detected=bool(row.detected),
+        box=box,
+        detector_name=row.detector_name,
+        detector_confidence=row.detector_confidence,
+        normalized=bool(row.normalized),
+        exposure_scale=row.exposure_scale,
+        lightness_mean=row.lightness_mean,
+        lightness_std=row.lightness_std,
+        saturation_mean=row.saturation_mean,
+        high_light_ratio=row.high_light_ratio,
+        edge_density=row.edge_density,
+        color_entropy=row.color_entropy,
+        background_lightness=row.background_lightness,
+        computed_at_utc=_parse_utc(row.computed_at_utc),
+        metrics_version=row.metrics_version,
+    )
+
+
+def _to_metric_row(metric: FrameMetric) -> FrameMetricRow:
+    return FrameMetricRow(
+        image_id=metric.image_id,
+        device_id=metric.device_id,
+        local_date=metric.local_date.isoformat(),
+        detected=int(metric.detected),
+        box_json=json.dumps(list(metric.box)) if metric.box is not None else None,
+        detector_name=metric.detector_name,
+        detector_confidence=metric.detector_confidence,
+        normalized=int(metric.normalized),
+        exposure_scale=metric.exposure_scale,
+        lightness_mean=metric.lightness_mean,
+        lightness_std=metric.lightness_std,
+        saturation_mean=metric.saturation_mean,
+        high_light_ratio=metric.high_light_ratio,
+        edge_density=metric.edge_density,
+        color_entropy=metric.color_entropy,
+        background_lightness=metric.background_lightness,
+        computed_at_utc=metric.computed_at_utc.isoformat(),
+        metrics_version=metric.metrics_version,
+    )
+
+
+class FrameMetricRepository:
+    """frame_metrics 表的读写；一张图一行。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, image_id: str) -> FrameMetric | None:
+        row = self._session.get(FrameMetricRow, image_id)
+        return _to_metric(row) if row is not None else None
+
+    def save(self, metric: FrameMetric) -> None:
+        """写入或覆盖同一张图的指标。"""
+        self._session.merge(_to_metric_row(metric))
+        self._session.commit()
+
+    def list_for_device(
+        self, device_id: str, start: date, end: date
+    ) -> list[FrameMetric]:
+        rows = self._session.scalars(
+            select(FrameMetricRow)
+            .where(
+                FrameMetricRow.device_id == device_id,
+                FrameMetricRow.local_date >= start.isoformat(),
+                FrameMetricRow.local_date <= end.isoformat(),
+            )
+            .order_by(FrameMetricRow.local_date)
+        ).all()
+        return [_to_metric(row) for row in rows]
+
+    def recent_background(
+        self, device_id: str, *, before: date, days: int
+    ) -> list[float]:
+        """取该设备在 before 之前若干天的背景亮度，用于估算曝光系数。"""
+        window_start = before - timedelta(days=days)
+        rows = self._session.scalars(
+            select(FrameMetricRow)
+            .where(
+                FrameMetricRow.device_id == device_id,
+                FrameMetricRow.local_date >= window_start.isoformat(),
+                FrameMetricRow.local_date < before.isoformat(),
+                FrameMetricRow.background_lightness.is_not(None),
+            )
+            .order_by(FrameMetricRow.local_date)
+        ).all()
+        return [value for row in rows if (value := row.background_lightness) is not None]
