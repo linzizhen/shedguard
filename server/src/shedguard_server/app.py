@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
-from shedguard_server.api.routes import health, images
+from shedguard_server.api.routes import events, health, images, series
 from shedguard_server.config import Settings
 from shedguard_server.errors import (
     ApiError,
@@ -98,4 +98,6 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
 
     app.include_router(health.router)
     app.include_router(images.router)
+    app.include_router(series.router)
+    app.include_router(events.router)
     return app

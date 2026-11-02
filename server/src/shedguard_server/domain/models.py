@@ -36,3 +36,27 @@ class ImagePage:
     total: int
     limit: int
     offset: int
+
+
+@dataclass(frozen=True, slots=True)
+class DailyFrame:
+    """某一天的代表帧；`image_id` 为 None 表示该日缺失。"""
+
+    local_date: date
+    image_id: str | None
+    captured_at_utc: datetime | None
+    in_window: bool
+    total_images: int
+
+
+@dataclass(frozen=True, slots=True)
+class ShedEvent:
+    """一次蜕皮记录。"""
+
+    id: str
+    device_id: str
+    event_date: date
+    outcome: str
+    notes: str | None
+    created_at_utc: datetime
+    updated_at_utc: datetime

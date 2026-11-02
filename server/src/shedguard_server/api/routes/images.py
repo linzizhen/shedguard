@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
+from shedguard_server.api.dependencies import (
+    get_image_repository as get_repository,
+)
+from shedguard_server.api.dependencies import (
+    get_settings,
+    get_storage,
+)
 from shedguard_server.config import Settings
 from shedguard_server.domain.models import ImageRecord
 from shedguard_server.errors import InvalidRequestError, NotFoundError, PayloadTooLargeError
@@ -25,25 +30,6 @@ router = APIRouter(prefix="/api/v1/images", tags=["images"])
 _MULTIPART_OVERHEAD = 8192
 
 _MEDIA_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}
-
-
-def get_settings(request: Request) -> Settings:
-    settings: Settings = request.app.state.settings
-    return settings
-
-
-def get_session(request: Request) -> Iterator[Session]:
-    factory: sessionmaker[Session] = request.app.state.session_factory
-    with factory() as session:
-        yield session
-
-
-def get_repository(session: Annotated[Session, Depends(get_session)]) -> ImageRepository:
-    return ImageRepository(session)
-
-
-def get_storage(settings: Annotated[Settings, Depends(get_settings)]) -> LocalStorage:
-    return LocalStorage(settings.data_dir)
 
 
 def get_ingest_service(

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
 
 from shedguard_server.app import create_app
 from shedguard_server.config import Settings
@@ -30,3 +31,5 @@ def client(settings: Settings) -> Iterator[TestClient]:
     app = create_app(settings)
     with TestClient(app) as test_client:
         yield test_client
+    engine: Engine = app.state.engine
+    engine.dispose()

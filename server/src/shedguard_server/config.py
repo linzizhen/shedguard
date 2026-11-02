@@ -11,6 +11,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
 DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+DEFAULT_CAPTURE_HOUR = 20
+DEFAULT_CAPTURE_WINDOW_MINUTES = 180
 
 
 class Settings(BaseSettings):
@@ -31,6 +33,8 @@ class Settings(BaseSettings):
     timezone: str = DEFAULT_TIMEZONE
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
+    capture_hour: int = Field(default=DEFAULT_CAPTURE_HOUR, ge=0, le=23)
+    capture_window_minutes: int = Field(default=DEFAULT_CAPTURE_WINDOW_MINUTES, ge=0, le=720)
 
     @field_validator("timezone")
     @classmethod

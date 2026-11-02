@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Index, Integer, String, Text
+from sqlalchemy import Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -28,3 +28,22 @@ class ImageRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"ImageRow(id={self.id!r}, sha256={self.sha256[:8]!r})"
+
+
+class ShedEventRow(Base):
+    __tablename__ = "shed_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("device_id", "event_date", name="uq_shed_events_device_date"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"ShedEventRow(id={self.id!r}, date={self.event_date!r})"

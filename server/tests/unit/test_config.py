@@ -77,3 +77,39 @@ def test_explicit_db_url_not_overridden(monkeypatch: pytest.MonkeyPatch, workdir
     settings = Settings(_env_file=None, data_dir=workdir)  # type: ignore[call-arg]
 
     assert settings.db_url == "sqlite:///:memory:"
+
+
+def test_capture_defaults(workdir: Path) -> None:
+    settings = Settings(_env_file=None, data_dir=workdir)  # type: ignore[call-arg]
+
+    assert settings.capture_hour == 20
+    assert settings.capture_window_minutes == 180
+
+
+def test_capture_env_override(monkeypatch: pytest.MonkeyPatch, workdir: Path) -> None:
+    monkeypatch.setenv("SHEDGUARD_CAPTURE_HOUR", "19")
+    monkeypatch.setenv("SHEDGUARD_CAPTURE_WINDOW_MINUTES", "90")
+
+    settings = Settings(_env_file=None, data_dir=workdir)  # type: ignore[call-arg]
+
+    assert settings.capture_hour == 19
+    assert settings.capture_window_minutes == 90
+
+
+@pytest.mark.parametrize("hour", ["24", "-1", "not-a-number"])
+def test_invalid_capture_hour_rejected(monkeypatch: pytest.MonkeyPatch, hour: str) -> None:
+    monkeypatch.setenv("SHEDGUARD_CAPTURE_HOUR", hour)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("minutes", ["721", "-1", "not-a-number"])
+def test_invalid_capture_window_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    minutes: str,
+) -> None:
+    monkeypatch.setenv("SHEDGUARD_CAPTURE_WINDOW_MINUTES", minutes)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
