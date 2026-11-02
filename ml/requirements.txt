@@ -1,0 +1,12 @@
+# ML 侧依赖：只在训练机上安装，不进服务端部署。
+# 服务端依赖见 ../server/requirements.lock。
+#
+# 安装（项目根目录）：
+#   .venv\Scripts\python.exe -m pip install -r ml/requirements.txt
+#
+# 注意：ultralytics 会连带装 opencv-python（带 GUI）覆盖 opencv-python-headless，
+# 两者提供同一个 cv2 模块，服务端只用到 imdecode/cvtColor，因此不冲突。
+
+torch>=2.5
+torchvision>=0.20
+ultralytics>=8.3

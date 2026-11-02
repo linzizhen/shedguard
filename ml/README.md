@@ -12,6 +12,17 @@
 
 所以数据集只保留 `gecko` 类，任务收敛成单类别检测。蜕皮判断交给 `server/` 的信号层与时序层，那里不依赖这批数据。
 
+## 安装依赖
+
+训练依赖与服务端分开：`ml/requirements.txt` 有 torch、torchvision、ultralytics，体积大、有 GPU 绑定，不进服务端部署。服务端只装 `server/requirements.lock`。
+
+```powershell
+# 在仓库根目录
+.\.venv\Scripts\python.exe -m pip install -r ml\requirements.txt
+```
+
+`ultralytics` 会连带装 `opencv-python`（带 GUI 版），覆盖服务端要的 `opencv-python-headless`。两者提供同一个 `cv2` 模块，服务端只用到 `imdecode`/`cvtColor`，功能不受影响。
+
 ## 构建数据集
 
 ```powershell
