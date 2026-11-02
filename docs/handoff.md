@@ -10,9 +10,11 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 ## 当前阶段
 
-**M0 进行中 —— 文档已定，后端技术决策已确认，可开工；ESP32-S3-EYE 板子已到手；业务代码尚未开始。**
+**Phase 0 完成 —— 后端工程骨架已落地并提交；下一步是 M2 图片上传接口（数据库、文件存储、`POST /api/v1/images`）。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径；但 Roboflow 上有一份 1,163 张、Public Domain 的蜕皮标注数据可以先用上。
+
+后端骨架现状（`server/`）：配置校验（8 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、CI 与 pre-commit。33 个测试，覆盖率 96.5%，ruff 与 mypy strict 全绿。
 
 ## 已经定下来的决策
 
@@ -43,8 +45,16 @@ shedguard/
 │   ├── roadmap.md            # 项目路线图（分阶段规划与验收标准）
 │   └── specs/
 │       └── 2026-11-02-server-image-ingest-design.md   # 后端图片接入服务设计规格
+├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
+├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── firmware/README.md        # ESP32-S3-EYE 固件占位
-├── server/README.md          # 后端占位
+├── server/                   # 后端服务（Phase 0 骨架已落地）
+│   ├── README.md             # 运行、配置与开发说明
+│   ├── pyproject.toml        # 依赖、ruff、mypy、pytest、覆盖率配置
+│   ├── requirements.lock     # 完整依赖锁定
+│   ├── .env.example          # 配置样例
+│   ├── src/shedguard_server/ # app、config、errors、logging_setup、api/routes
+│   └── tests/                # unit 与 integration
 └── app/README.md             # 前端占位
 ```
 
@@ -52,7 +62,7 @@ shedguard/
 
 分阶段计划、依赖关系与验收标准见 `docs/roadmap.md`，这里只列最近几步：
 
-1. 后端图片接收服务（Phase 0–1）：收图 → 落盘 → 元数据入库 → 可查询（规格与决策已定，可开工）
+1. 后端图片接收服务（Phase 0–1）：Phase 0 骨架已完成；剩 M2 上传接口（数据库、文件存储、`POST /api/v1/images`）与 M3 查询接口
 2. 数据流提前启动（Phase 2）：不等固件，先用手机临时机位开始积累影像
 3. 导出 Roboflow `capstone-habql/gecko_1`（1,163 张，Public Domain）：用于第一层门控预训练，需注册免费账号，与主线并行
 4. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图
