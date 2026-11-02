@@ -10,11 +10,11 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 ## 当前阶段
 
-**Phase 1 完成（M1 骨架 → M2 图片接入 → M3 时序输入层 → M5 信号层 → M4 定位模型）—— 后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标；定位模型已训练并在服务端跑通。下一步是 M6 时序判定层。**
+**Phase 1 完成（M1 骨架 → M2 图片接入 → M3 时序输入层 → M5 信号层 → M4 定位模型 → M6 判定层）—— 后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、再按时序算出「今天是否异常」；定位模型已训练并在服务端跑通。下一步是真实数据采集（Phase 2）。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`，评估结论是**只能用来训「守宫在哪」，不能用来训「是否蜕皮」**：短边 < 400px 占 90.9%，分辨率与类别强耦合，直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习。
 
-后端现状（`server/`）：配置校验（13 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`、`POST /api/v1/analysis/{image_id}`（六项体表指标 + 曝光归一化）、Alembic 三次迁移在启动时自动升级、CI 与 pre-commit。177 个测试，覆盖率 95.8%，ruff 与 mypy strict 全绿。
+后端现状（`server/`）：配置校验（18 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`、`POST /api/v1/analysis/{image_id}`（六项体表指标 + 曝光归一化）、`GET /api/v1/series/{device_id}/signals`（稳健 Z 分数与四状态判定）、Alembic 三次迁移在启动时自动升级、CI 与 pre-commit。211 个测试，覆盖率 96.2%，ruff 与 mypy strict 全绿。
 
 定位模型（`ml/`）：`yolov8n` 微调 50 轮（RTX 5070 上 3.6 分钟），单类别 `gecko`，测试集 `mAP50 = 0.902 / mAP50-95 = 0.578`，通过 0.85 验收线。导出 `ml/models/gecko-det.onnx`（12.2 MB，不进仓库），已用服务端 `OnnxDetector` 加载真实网图验证，8/8 检出。已知短板：训练集全是可见光，一张红外图都没有。
 
@@ -48,7 +48,8 @@ shedguard/
 │   └── specs/
 │       ├── 2026-11-02-server-image-ingest-design.md   # 后端图片接入服务设计规格
 │       ├── 2026-11-02-series-and-events-design.md     # 每日序列与蜕皮事件设计规格
-│       └── 2026-11-02-shed-detection-core-design.md   # 蜕皮识别三层架构（定位/信号/时序）
+│       ├── 2026-11-02-shed-detection-core-design.md   # 蜕皮识别三层架构（定位/信号/时序）
+│       └── 2026-11-02-shed-judgement-design.md        # 时序判定层（稳健 Z 分数与告警状态机）
 ├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
 ├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── data/
@@ -77,9 +78,9 @@ shedguard/
 
 1. ~~后端图片接收服务（Phase 0–1）~~ —— 已完成：M1 骨架、M2 图片接入、M3 每日序列与蜕皮事件、M5 信号层
 2. ~~M4 定位模型训练~~ —— 已完成：测试集 mAP50 0.902，ONNX 已接入服务端并验证
-3. M6 时序判定层：用指标序列做稳健 Z 分数，定义告警规则与趋势端点
+3. ~~M6 时序判定层~~ —— 已完成：`GET /api/v1/series/{device_id}/signals`，稳健 Z 分数 + 四状态机
 4. ~~导出 Roboflow `capstone-habql/gecko_1`~~ —— 已完成，落在 `data/raw/gecko1/`
-5. 数据流提前启动（Phase 2）：不等固件，先用手机临时机位开始积累影像
+5. **数据流提前启动（Phase 2）** —— 不等固件，先用手机临时机位开始积累影像。这是判断层能否被验证的唯一路径
 6. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图（上传协议已就绪）
 7. 知识库核实（Phase 9）：填完 `docs/gecko-params.md` 的 `[待核实]` 项，可与其他步骤并行
 
@@ -105,4 +106,5 @@ shedguard/
 - [x] ~~后端规格的三个技术决策~~ —— 已定：FastAPI + SQLAlchemy + Alembic、`/api/v1`、默认监听 `127.0.0.1`
 - [x] ~~开发阶段先做固件还是先做后端图像分析~~ —— 已定：先后端接收端点
 - [x] ~~是否注册 Roboflow 账号导出 `capstone-habql/gecko_1`~~ —— 已定：已导出并评估，只用作定位训练集
+- [ ] 判定层的阈值怎么校准 —— 当前 `z ≥ 2.0`、连续 2 天、每天 ≥2 指标全是拍的，没有一条真实蜕皮序列可验证。等 Phase 2 采到数据后回头调参，这是项目当前最大的技术风险
 - [ ] 数据自采的机位与频次（手机临时机位方案，见 `docs/roadmap.md` Phase 2）

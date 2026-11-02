@@ -7,6 +7,7 @@
 - [`../docs/specs/2026-11-02-server-image-ingest-design.md`](../docs/specs/2026-11-02-server-image-ingest-design.md)（M1/M2 图片接入）
 - [`../docs/specs/2026-11-02-series-and-events-design.md`](../docs/specs/2026-11-02-series-and-events-design.md)（M3 时序输入层）
 - [`../docs/specs/2026-11-02-shed-detection-core-design.md`](../docs/specs/2026-11-02-shed-detection-core-design.md)（M5 信号层）
+- [`../docs/specs/2026-11-02-shed-judgement-design.md`](../docs/specs/2026-11-02-shed-judgement-design.md)（M6 判定层）
 
 ## 当前进度
 
@@ -14,7 +15,8 @@
 - M2（图片接入）：上传、幂等去重、按天列表、取原图与元数据、Alembic 迁移——已完成。
 - M3（时序输入层）：每日代表帧选择、区间序列查询、蜕皮事件记录——已完成。
 - M5（信号层）：检测器抽象、六项体表指标、光照归一化、指标落库与查询——已完成。
-- M4（定位模型训练）：数据集转换脚本已就绪，模型待训练。
+- M4（定位模型）：YOLOv8n 训练完成，测试集 mAP50 0.902，ONNX 已接入。
+- M6（判定层）：稳健 Z 分数、方向性判定、告警状态与趋势端点——已完成。
 
 ## 运行
 
@@ -146,6 +148,51 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 
 `SHEDGUARD_DETECTOR_MODEL` 为空时使用空检测器，整张图当作身体，只适合验证链路、不适合真实判断。
 
+## 判定信号
+
+### 查询逐日判定
+
+`GET /api/v1/series/{device_id}/signals?from=2026-11-01&to=2026-11-14`
+
+返回区间内每一天的判定状态。基线会越过区间左端向前回看 `SHEDGUARD_BASELINE_DAYS` 天，因此查询「最近七天」也能拿到足够样本：
+
+```json
+{
+  "device_id": "cam-1",
+  "from": "2026-11-01",
+  "to": "2026-11-03",
+  "days": [
+    {
+      "date": "2026-11-01",
+      "image_id": "0f1e...",
+      "metrics": {"lightness_mean": 62.4, "...": 0.0},
+      "z_scores": {"lightness_mean": 0.41, "...": 0.0},
+      "hits": [],
+      "state": "normal",
+      "baseline_samples": 12
+    }
+  ],
+  "alert_days": 0,
+  "current_state": "normal"
+}
+```
+
+四种状态：
+
+| 状态 | 含义 |
+|---|---|
+| `insufficient` | 基线样本不足 `SHEDGUARD_MIN_BASELINE_SAMPLES`，还判断不了 |
+| `normal` | 没有命中 |
+| `watch` | 命中数达标，但还没连续够天数 |
+| `alert` | 连续 `SHEDGUARD_ALERT_CONSECUTIVE_DAYS` 天，每天命中 ≥ `SHEDGUARD_ALERT_MIN_SIGNALS` 个指标 |
+
+判定细节：
+
+- 偏离度用中位数 + MAD 的稳健 Z 分数，不用标准差——蜕皮当天本身就是离群点，会把标准差撑大。
+- 只认符合蜕皮方向的越界：亮度升高、饱和度降低、高光增多、纹理变密。亮度大幅**下降**不算命中。
+- 无图日与未检出守宫的日子会清空连续计数，不会跨过缺口累积。
+- 区间天数上限 366，`from` 不得晚于 `to`。
+
 ### 错误码
 
 | 码 | 状态 | 触发场景 |
@@ -175,6 +222,11 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_DETECTOR_MODEL` | 空 | ONNX 检测模型路径；为空则用空检测器 |
 | `SHEDGUARD_DETECT_MIN_CONFIDENCE` | `0.35` | 检测框置信度下限（0–1） |
 | `SHEDGUARD_BACKGROUND_DAYS` | `7` | 计算曝光参考值回看的有效天数（1–60） |
+| `SHEDGUARD_BASELINE_DAYS` | `14` | 判定时回看的历史天数（3–90） |
+| `SHEDGUARD_MIN_BASELINE_SAMPLES` | `7` | 判定所需的最少基线样本数（3–90） |
+| `SHEDGUARD_ROBUST_Z_THRESHOLD` | `2.0` | 单指标越界的稳健 Z 阈值（1.0–6.0） |
+| `SHEDGUARD_ALERT_MIN_SIGNALS` | `2` | 触发所需的最少命中指标数（1–6） |
+| `SHEDGUARD_ALERT_CONSECUTIVE_DAYS` | `2` | 触发所需的连续天数（1–7） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
