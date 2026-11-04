@@ -12,3 +12,5 @@ torchvision>=0.20
 ultralytics>=8.3
 # ultralytics 导出 ONNX 时会自动装，这里显式声明版本下限
 onnx>=1.16
+# torch 2.14 起 torch.onnx.export 走 dynamo 导出器，依赖 onnxscript
+onnxscript>=0.2
