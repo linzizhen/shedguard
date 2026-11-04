@@ -11,7 +11,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from shedguard_server.config import Settings
-from shedguard_server.errors import StorageUnavailableError
+from shedguard_server.errors import ModelUnavailableError, StorageUnavailableError
 
 router = APIRouter(tags=["health"])
 
@@ -46,6 +46,9 @@ def readyz(request: Request) -> dict[str, str]:
     detector_error = getattr(request.app.state, "detector_error", None)
     if detector_error is not None:
         raise StorageUnavailableError("检测模型加载失败")
+    classifier_error = getattr(request.app.state, "classifier_error", None)
+    if classifier_error is not None:
+        raise ModelUnavailableError("状态分类模型加载失败")
     engine: Engine = request.app.state.engine
     if not _database_ready(engine):
         raise StorageUnavailableError("数据库不可用")

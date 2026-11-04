@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
@@ -12,10 +11,10 @@ from shedguard_server.api.dependencies import (
     get_judgement_service,
     get_settings,
 )
+from shedguard_server.api.params import parse_day
 from shedguard_server.config import Settings
 from shedguard_server.domain.judgement import DayJudgement
 from shedguard_server.domain.models import DailyFrame
-from shedguard_server.errors import InvalidRequestError
 from shedguard_server.infra.repository import ImageRepository
 from shedguard_server.services.judgement import JudgementService, SignalReport
 from shedguard_server.services.series import SeriesService
@@ -38,16 +37,6 @@ def get_series_service(
     )
 
 
-def _parse_day(raw: str, name: str) -> date:
-    try:
-        parsed = date.fromisoformat(raw)
-    except ValueError as exc:
-        raise InvalidRequestError(f"{name} 必须是 YYYY-MM-DD: {raw!r}") from exc
-    if parsed.isoformat() != raw:
-        raise InvalidRequestError(f"{name} 必须是 YYYY-MM-DD: {raw!r}")
-    return parsed
-
-
 def _serialize_frame(frame: DailyFrame) -> dict[str, Any]:
     captured = frame.captured_at_utc
     return {
@@ -66,8 +55,8 @@ def get_series(
     from_date: Annotated[str, Query(alias="from")],
     to_date: Annotated[str, Query(alias="to")],
 ) -> dict[str, Any]:
-    start = _parse_day(from_date, "from")
-    end = _parse_day(to_date, "to")
+    start = parse_day(from_date, "from")
+    end = parse_day(to_date, "to")
     frames = service.build(device_id_raw=device_id, start=start, end=end)
     return {
         "device_id": device_id,
@@ -115,7 +104,7 @@ def get_signals(
     from_date: Annotated[str, Query(alias="from")],
     to_date: Annotated[str, Query(alias="to")],
 ) -> dict[str, Any]:
-    start = _parse_day(from_date, "from")
-    end = _parse_day(to_date, "to")
+    start = parse_day(from_date, "from")
+    end = parse_day(to_date, "to")
     report = service.signals(device_id_raw=device_id, start=start, end=end)
     return _serialize_report(report)

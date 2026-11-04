@@ -88,3 +88,24 @@ class FrameMetric:
     background_lightness: float | None
     computed_at_utc: datetime
     metrics_version: str
+
+
+@dataclass(frozen=True, slots=True)
+class SheddingState:
+    """一张图的蜕皮状态。
+
+    `state` 为 `unknown` 时，`confidence`、`probabilities`、`box` 都可能是 None ——
+    表示这天有图，但没找到守宫或分类器没把握。
+    """
+
+    image_id: str
+    device_id: str
+    local_date: date
+    state: str
+    confidence: float | None
+    probabilities: dict[str, float] | None
+    detector_name: str
+    classifier_name: str
+    box: tuple[int, int, int, int] | None
+    computed_at_utc: datetime
+    state_version: str

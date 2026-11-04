@@ -20,6 +20,8 @@ DEFAULT_MIN_BASELINE_SAMPLES = 7
 DEFAULT_ROBUST_Z_THRESHOLD = 2.0
 DEFAULT_ALERT_MIN_SIGNALS = 2
 DEFAULT_ALERT_CONSECUTIVE_DAYS = 2
+DEFAULT_STATE_MIN_CONFIDENCE = 0.6
+DEFAULT_STATE_CROP_PADDING = 0.08
 
 
 class Settings(BaseSettings):
@@ -52,6 +54,13 @@ class Settings(BaseSettings):
     robust_z_threshold: float = Field(default=DEFAULT_ROBUST_Z_THRESHOLD, ge=1.0, le=6.0)
     alert_min_signals: int = Field(default=DEFAULT_ALERT_MIN_SIGNALS, ge=1, le=6)
     alert_consecutive_days: int = Field(default=DEFAULT_ALERT_CONSECUTIVE_DAYS, ge=1, le=7)
+    state_model: str = ""
+    state_min_confidence: float = Field(
+        default=DEFAULT_STATE_MIN_CONFIDENCE, ge=0.0, le=1.0
+    )
+    state_crop_padding: float = Field(
+        default=DEFAULT_STATE_CROP_PADDING, ge=0.0, le=0.3
+    )
 
     @field_validator("timezone")
     @classmethod

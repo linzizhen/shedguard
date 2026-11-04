@@ -15,6 +15,7 @@ class ErrorCode(StrEnum):
     EMPTY_PAYLOAD = "EMPTY_PAYLOAD"
     NOT_FOUND = "NOT_FOUND"
     STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE"
+    MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
@@ -56,6 +57,13 @@ class NotFoundError(ApiError):
 
 class StorageUnavailableError(ApiError):
     code = ErrorCode.STORAGE_UNAVAILABLE
+    status_code = 503
+
+
+class ModelUnavailableError(ApiError):
+    """模型未配置、文件损坏或输出不合法；调用方应降级而不是猜。"""
+
+    code = ErrorCode.MODEL_UNAVAILABLE
     status_code = 503
 
 

@@ -9,8 +9,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from shedguard_server.domain.models import FrameMetric, ImageRecord, ShedEvent
-from shedguard_server.infra.tables import FrameMetricRow, ImageRow, ShedEventRow
+from shedguard_server.domain.models import (
+    FrameMetric,
+    ImageRecord,
+    SheddingState,
+    ShedEvent,
+)
+from shedguard_server.infra.tables import (
+    FrameMetricRow,
+    ImageRow,
+    SheddingStateRow,
+    ShedEventRow,
+)
 
 
 def _parse_utc(value: str) -> datetime:
@@ -277,3 +287,79 @@ class FrameMetricRepository:
             .order_by(FrameMetricRow.local_date)
         ).all()
         return [value for row in rows if (value := row.background_lightness) is not None]
+
+
+def _to_shedding_state(row: SheddingStateRow) -> SheddingState:
+    box: tuple[int, int, int, int] | None = None
+    if row.box_json is not None:
+        raw_box = json.loads(row.box_json)
+        box = (int(raw_box[0]), int(raw_box[1]), int(raw_box[2]), int(raw_box[3]))
+
+    probabilities: dict[str, float] | None = None
+    if row.probabilities_json is not None:
+        raw_probabilities = json.loads(row.probabilities_json)
+        probabilities = {str(name): float(value) for name, value in raw_probabilities.items()}
+
+    return SheddingState(
+        image_id=row.image_id,
+        device_id=row.device_id,
+        local_date=date.fromisoformat(row.local_date),
+        state=row.state,
+        confidence=row.confidence,
+        probabilities=probabilities,
+        detector_name=row.detector_name,
+        classifier_name=row.classifier_name,
+        box=box,
+        computed_at_utc=_parse_utc(row.computed_at_utc),
+        state_version=row.state_version,
+    )
+
+
+def _to_shedding_state_row(state: SheddingState) -> SheddingStateRow:
+    return SheddingStateRow(
+        image_id=state.image_id,
+        device_id=state.device_id,
+        local_date=state.local_date.isoformat(),
+        state=state.state,
+        confidence=state.confidence,
+        probabilities_json=(
+            json.dumps(state.probabilities, ensure_ascii=False)
+            if state.probabilities is not None
+            else None
+        ),
+        detector_name=state.detector_name,
+        classifier_name=state.classifier_name,
+        box_json=json.dumps(list(state.box)) if state.box is not None else None,
+        computed_at_utc=state.computed_at_utc.isoformat(),
+        state_version=state.state_version,
+    )
+
+
+class SheddingStateRepository:
+    """shedding_states 表的读写；一张图一行。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, image_id: str) -> SheddingState | None:
+        row = self._session.get(SheddingStateRow, image_id)
+        return _to_shedding_state(row) if row is not None else None
+
+    def save(self, state: SheddingState) -> None:
+        """写入或覆盖同一张图的状态。"""
+        self._session.merge(_to_shedding_state_row(state))
+        self._session.commit()
+
+    def list_for_device(
+        self, device_id: str, start: date, end: date
+    ) -> list[SheddingState]:
+        rows = self._session.scalars(
+            select(SheddingStateRow)
+            .where(
+                SheddingStateRow.device_id == device_id,
+                SheddingStateRow.local_date >= start.isoformat(),
+                SheddingStateRow.local_date <= end.isoformat(),
+            )
+            .order_by(SheddingStateRow.local_date, SheddingStateRow.image_id)
+        ).all()
+        return [_to_shedding_state(row) for row in rows]

@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector
-from shedguard_server.infra.repository import FrameMetricRepository, ImageRepository
+from shedguard_server.domain.shedding import StateClassifier
+from shedguard_server.infra.repository import (
+    FrameMetricRepository,
+    ImageRepository,
+    SheddingStateRepository,
+)
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.judgement import JudgementService
 
@@ -38,6 +43,18 @@ def get_metric_repository(
 
 def get_storage(settings: Annotated[Settings, Depends(get_settings)]) -> LocalStorage:
     return LocalStorage(settings.data_dir)
+
+
+def get_shedding_state_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> SheddingStateRepository:
+    return SheddingStateRepository(session)
+
+
+def get_state_classifier(request: Request) -> StateClassifier | None:
+    """未配置分类模型时返回 None，由调用方决定如何降级。"""
+    classifier: StateClassifier | None = request.app.state.state_classifier
+    return classifier
 
 
 def get_detector(request: Request) -> Detector:

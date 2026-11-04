@@ -81,3 +81,34 @@ class FrameMetricRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"FrameMetricRow(image_id={self.image_id!r}, date={self.local_date!r})"
+
+
+class SheddingStateRow(Base):
+    """一张图的蜕皮状态。字段与类型见蜕皮状态规格第 6 节。
+
+    `device_id` 与 `local_date` 是从 `images` 冗余过来的，和 `frame_metrics`
+    同一做法：按设备与日期区间聚合是主要查询，不必每次回连大表。
+    """
+
+    __tablename__ = "shedding_states"
+
+    image_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("images.id"), primary_key=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    local_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    probabilities_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detector_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    classifier_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    box_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    computed_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    state_version: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        Index("ix_shedding_states_device_date", "device_id", "local_date"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"SheddingStateRow(image_id={self.image_id!r}, state={self.state!r})"

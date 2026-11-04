@@ -13,9 +13,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
-from shedguard_server.api.routes import analysis, events, health, images, series
+from shedguard_server.api.routes import analysis, events, health, images, series, shedding
 from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector, NullDetector
+from shedguard_server.domain.shedding import StateClassifier
 from shedguard_server.errors import (
     ApiError,
     InternalError,
@@ -24,6 +25,7 @@ from shedguard_server.errors import (
     error_payload,
 )
 from shedguard_server.ids import new_request_id
+from shedguard_server.infra.classifier import OnnxStateClassifier
 from shedguard_server.infra.db import create_db_engine, create_session_factory
 from shedguard_server.infra.detector import OnnxDetector
 from shedguard_server.infra.migrate import run_migrations
@@ -57,6 +59,21 @@ def _build_detector(settings: Settings) -> tuple[Detector, Exception | None]:
     return detector, None
 
 
+def _build_classifier(
+    settings: Settings,
+) -> tuple[StateClassifier | None, Exception | None]:
+    """加载蜕皮状态分类模型；未配置时返回 None，接口据此返回 503。"""
+    if not settings.state_model:
+        return None, None
+    try:
+        classifier = OnnxStateClassifier.from_path(Path(settings.state_model))
+    except Exception as exc:  # 加载失败降级而不是崩服务
+        logger.exception("状态分类模型加载失败，蜕皮状态接口将不可用")
+        return None, exc
+    logger.info("已加载状态分类模型 %s", classifier.name)
+    return classifier, None
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -80,6 +97,7 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.state.engine = create_db_engine(settings.resolved_db_url)
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.detector, app.state.detector_error = _build_detector(settings)
+    app.state.state_classifier, app.state.classifier_error = _build_classifier(settings)
 
     async def request_context(
         request: Request,
@@ -121,4 +139,6 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(series.router)
     app.include_router(events.router)
     app.include_router(analysis.router)
+    app.include_router(shedding.router)
+    app.include_router(shedding.series_router)
     return app
