@@ -1,6 +1,6 @@
 # shedguard-server
 
-爬宠蜕皮预警系统的后端图片接入服务。负责接收设备上传的照片、按日期与设备归档、把元数据写入 SQLite，并把每天的照片收敛成可供每日对比分析消费的序列，同时记录人工标注的蜕皮事件。
+爬宠蜕皮预警系统的后端图片接入服务。负责接收设备上传的照片、按日期与设备归档、把元数据写入 SQLite，并把每天的照片收敛成可供每日对比分析消费的序列，同时记录人工标注的蜕皮事件、计算体表指标、判定蜕皮状态。
 
 设计依据：
 
@@ -8,6 +8,7 @@
 - [`../docs/specs/2026-11-02-series-and-events-design.md`](../docs/specs/2026-11-02-series-and-events-design.md)（M3 时序输入层）
 - [`../docs/specs/2026-11-02-shed-detection-core-design.md`](../docs/specs/2026-11-02-shed-detection-core-design.md)（M5 信号层）
 - [`../docs/specs/2026-11-02-shed-judgement-design.md`](../docs/specs/2026-11-02-shed-judgement-design.md)（M6 判定层）
+- [`../docs/specs/2026-11-04-shedding-state-design.md`](../docs/specs/2026-11-04-shedding-state-design.md)（蜕皮状态识别）
 
 ## 当前进度
 
@@ -17,6 +18,7 @@
 - M5（信号层）：检测器抽象、六项体表指标、光照归一化、指标落库与查询——已完成。
 - M4（定位模型）：YOLOv8n 训练完成，测试集 mAP50 0.902，ONNX 已接入。
 - M6（判定层）：稳健 Z 分数、方向性判定、告警状态与趋势端点——已完成。
+- M7（蜕皮状态识别）：定位 + 独立分类器、四态判定、每日投票聚合、事件由状态转换推导——已完成，分类模型为二态占位。
 
 ## 运行
 
@@ -193,6 +195,87 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 - 无图日与未检出守宫的日子会清空连续计数，不会跨过缺口累积。
 - 区间天数上限 366，`from` 不得晚于 `to`。
 
+## 蜕皮状态识别
+
+判定层回答「指标有没有异常偏移」，状态识别回答「守宫现在处于蜕皮的哪个阶段」。两者独立：前者是纯统计，后者是一个独立训练的视觉分类器。
+
+### 识别单张图片
+
+`POST /api/v1/shedding/{image_id}`：取图 → 定位守宫 → 按框裁剪（外扩 `SHEDGUARD_STATE_CROP_PADDING`）→ 缩放到 224×224 → 分类 → 落库。
+
+```json
+{
+  "image_id": "0f1e...",
+  "device_id": "cam-1",
+  "date": "2026-11-04",
+  "state": "shedding",
+  "confidence": 0.9969,
+  "probabilities": {"normal": 0.0031, "shedding": 0.9969},
+  "detector_name": "onnx:gecko-det",
+  "classifier_name": "onnx:gecko-state",
+  "state_version": "1",
+  "box": [120, 88, 402, 310],
+  "computed_at_utc": "2026-11-04T02:15:11Z"
+}
+```
+
+四种状态：
+
+| 状态 | 含义 | 谁判定 |
+|---|---|---|
+| `normal` | 体色正常，没有蜕皮迹象 | 分类器 |
+| `opaque` | 蒙白：体色发白、图案对比度下降，皮还完整 | 分类器 |
+| `shedding` | 蜕皮中：皮正在脱落 | 分类器 |
+| `unknown` | 判断不了 | 服务层：未检出守宫，或最高置信度低于 `SHEDGUARD_STATE_MIN_CONFIDENCE` |
+
+`unknown` 不是模型的输出类别。分类器永远只能输出具体状态，降级到 `unknown` 由服务层做——这样「模型没把握」和「模型认为正常」不会被混为一谈。降级时 `confidence` 为 `null`，但 `probabilities` 完整保留，便于排查模型到底看到了什么。
+
+同一张图重复调用返回既有结果，幂等键是 `(state_version, classifier_name)`：换了模型会重新识别，不换就复用。
+
+### 查询逐日状态
+
+`GET /api/v1/series/{device_id}/shedding?from=2026-11-01&to=2026-11-14`
+
+```json
+{
+  "device_id": "cam-1",
+  "from": "2026-11-01",
+  "to": "2026-11-03",
+  "days": [
+    {"date": "2026-11-01", "state": "normal", "votes": {"normal": 2, "opaque": 0, "shedding": 0}, "image_count": 2},
+    {"date": "2026-11-02", "state": "opaque", "votes": {"normal": 0, "opaque": 3, "shedding": 1}, "image_count": 4},
+    {"date": "2026-11-03", "state": "shedding", "votes": {"normal": 0, "opaque": 0, "shedding": 2}, "image_count": 2}
+  ],
+  "events": [
+    {"type": "shed_started", "date": "2026-11-02", "previous": "normal", "current": "opaque"}
+  ],
+  "current_state": "shedding"
+}
+```
+
+聚合与事件规则：
+
+- 当天所有已识别图片投票，`unknown` 不参与；取众数，平票按 `shedding > opaque > normal` 排序——漏报一次蜕皮的代价高于让用户多看一眼。
+- 当天没有可用图片时 `state` 为 `null`，不是 `normal`。「无法判断」和「一切正常」是两回事。
+- 事件由状态转换推导，不单独存表：`normal` → `opaque`/`shedding` 记 `shed_started`；反向记 `shed_completed`；`opaque` ↔ `shedding` 不算事件（同一次蜕皮的内部阶段变化）。
+- 「已蜕完」不是视觉状态，而是「蜕皮中 → 正常」这次转换。
+- 缺图日不打断序列，只被跳过；但连续两天状态相同不会重复发事件。
+- 区间天数上限 366，`from` 不得晚于 `to`。
+
+### 类别顺序由模型决定
+
+服务端不硬编码 `normal/opaque/shedding`，而是从 `SHEDGUARD_STATE_MODEL` 同名的 `.labels.json` 读取：
+
+```json
+{"labels": ["normal", "shedding"], "input_size": 224}
+```
+
+所以换模型只换文件：当前是二态（没有蒙白数据），等蒙白样本到位后重新训练三态模型、替换 `.onnx` 与 `.labels.json`，服务端代码一行不改。
+
+### 已知限制
+
+当前分类模型是在公开爬宠数据集上训的二态占位模型（`ml/README.md` 有训练细节）：训练集物种混杂、没有红外图、**蒙白类样本为零**。它能证明链路通，不能当作产品精度。详见规格第 9 节。
+
 ### 错误码
 
 | 码 | 状态 | 触发场景 |
@@ -202,7 +285,8 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | 魔数既非 JPEG 也非 PNG |
 | `PAYLOAD_TOO_LARGE` | 413 | 超过 `SHEDGUARD_MAX_UPLOAD_BYTES` |
 | `NOT_FOUND` | 404 | 图片不存在 |
-| `STORAGE_UNAVAILABLE` | 503 | 数据目录或数据库不可用 |
+| `STORAGE_UNAVAILABLE` | 503 | 数据目录、数据库或模型文件不可用 |
+| `MODEL_UNAVAILABLE` | 503 | 状态分类模型未配置或加载失败 |
 | `INTERNAL_ERROR` | 500 | 未预期异常 |
 
 ## 配置
@@ -227,6 +311,9 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_ROBUST_Z_THRESHOLD` | `2.0` | 单指标越界的稳健 Z 阈值（1.0–6.0） |
 | `SHEDGUARD_ALERT_MIN_SIGNALS` | `2` | 触发所需的最少命中指标数（1–6） |
 | `SHEDGUARD_ALERT_CONSECUTIVE_DAYS` | `2` | 触发所需的连续天数（1–7） |
+| `SHEDGUARD_STATE_MODEL` | 空 | ONNX 状态分类模型路径；为空则识别接口返回 503 |
+| `SHEDGUARD_STATE_MIN_CONFIDENCE` | `0.6` | 低于此置信度降级为 `unknown`（0–1） |
+| `SHEDGUARD_STATE_CROP_PADDING` | `0.08` | 按检测框裁剪时的外扩比例（0–0.3） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
@@ -277,10 +364,11 @@ server/
     ids.py              请求 ID 生成
     api/
       dependencies.py   依赖装配
-      routes/           HTTP 路由（health / images / series / shed-events / analysis）
-    domain/             领域规则（校验、命名、时间、序列、事件、成像、检测、指标）
+      params.py         查询参数解析
+      routes/           HTTP 路由（health / images / series / shed-events / analysis / shedding）
+    domain/             领域规则（校验、命名、时间、序列、事件、成像、检测、指标、判定、蜕皮状态）
     services/           用例编排
-    infra/              数据库、存储、迁移执行、图像解码、ONNX 检测器
+    infra/              数据库、存储、迁移执行、图像解码、ONNX 检测器与分类器
     migrations/         Alembic 版本
   tests/
     unit/               领域与工具层
