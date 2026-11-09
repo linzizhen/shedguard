@@ -83,6 +83,46 @@ class FrameMetricRow(Base):
         return f"FrameMetricRow(image_id={self.image_id!r}, date={self.local_date!r})"
 
 
+class PetRow(Base):
+    """App 端手动管理的宠物。"""
+
+    __tablename__ = "pets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    species: Mapped[str] = mapped_column(String(64), nullable=False)
+    morph: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    birth_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"PetRow(id={self.id!r}, name={self.name!r})"
+
+
+class ShedRecordRow(Base):
+    """一次手动记录的蜕皮。同一宠物同一天只能开始一次蜕皮。"""
+
+    __tablename__ = "shed_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    pet_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("pets.id"), nullable=False, index=True
+    )
+    started_on: Mapped[str] = mapped_column(String(10), nullable=False)
+    completed_on: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("pet_id", "started_on", name="uq_shed_records_pet_started"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"ShedRecordRow(id={self.id!r}, pet={self.pet_id!r})"
+
+
 class SheddingStateRow(Base):
     """一张图的蜕皮状态。字段与类型见蜕皮状态规格第 6 节。
 

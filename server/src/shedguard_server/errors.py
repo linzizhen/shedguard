@@ -14,6 +14,7 @@ class ErrorCode(StrEnum):
     PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
     EMPTY_PAYLOAD = "EMPTY_PAYLOAD"
     NOT_FOUND = "NOT_FOUND"
+    CONFLICT = "CONFLICT"
     STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE"
     MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
     INTERNAL_ERROR = "INTERNAL_ERROR"
@@ -53,6 +54,13 @@ class EmptyPayloadError(ApiError):
 class NotFoundError(ApiError):
     code = ErrorCode.NOT_FOUND
     status_code = 404
+
+
+class ConflictError(ApiError):
+    """资源冲突：例如同一宠物同一天已有蜕皮记录。"""
+
+    code = ErrorCode.CONFLICT
+    status_code = 409
 
 
 class StorageUnavailableError(ApiError):

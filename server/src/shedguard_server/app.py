@@ -13,7 +13,17 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
-from shedguard_server.api.routes import analysis, events, health, images, series, shedding
+from shedguard_server.api.routes import (
+    analysis,
+    events,
+    health,
+    images,
+    knowledge,
+    pets,
+    risk,
+    series,
+    shedding,
+)
 from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector, NullDetector
 from shedguard_server.domain.shedding import StateClassifier
@@ -141,4 +151,7 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(analysis.router)
     app.include_router(shedding.router)
     app.include_router(shedding.series_router)
+    app.include_router(pets.router)
+    app.include_router(knowledge.router)
+    app.include_router(risk.router)
     return app

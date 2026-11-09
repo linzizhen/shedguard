@@ -15,11 +15,14 @@ from shedguard_server.domain.models import (
     SheddingState,
     ShedEvent,
 )
+from shedguard_server.domain.pets import Pet, ShedRecord
 from shedguard_server.infra.tables import (
     FrameMetricRow,
     ImageRow,
+    PetRow,
     SheddingStateRow,
     ShedEventRow,
+    ShedRecordRow,
 )
 
 
@@ -363,3 +366,135 @@ class SheddingStateRepository:
             .order_by(SheddingStateRow.local_date, SheddingStateRow.image_id)
         ).all()
         return [_to_shedding_state(row) for row in rows]
+
+
+def _to_pet(row: PetRow) -> Pet:
+    return Pet(
+        id=row.id,
+        name=row.name,
+        species=row.species,
+        morph=row.morph,
+        birth_date=date.fromisoformat(row.birth_date) if row.birth_date else None,
+        created_at_utc=_parse_utc(row.created_at_utc),
+        updated_at_utc=_parse_utc(row.updated_at_utc),
+    )
+
+
+def _to_pet_row(pet: Pet) -> PetRow:
+    return PetRow(
+        id=pet.id,
+        name=pet.name,
+        species=pet.species,
+        morph=pet.morph,
+        birth_date=pet.birth_date.isoformat() if pet.birth_date else None,
+        created_at_utc=pet.created_at_utc.isoformat(),
+        updated_at_utc=pet.updated_at_utc.isoformat(),
+    )
+
+
+class PetRepository:
+    """pets 表的读写。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, pet_id: str) -> Pet | None:
+        row = self._session.get(PetRow, pet_id)
+        return _to_pet(row) if row is not None else None
+
+    def list(self) -> list[Pet]:
+        rows = self._session.scalars(select(PetRow).order_by(PetRow.created_at_utc)).all()
+        return [_to_pet(row) for row in rows]
+
+    def add(self, pet: Pet) -> None:
+        self._session.add(_to_pet_row(pet))
+        self._session.commit()
+
+    def update(self, pet: Pet) -> None:
+        self._session.merge(_to_pet_row(pet))
+        self._session.commit()
+
+    def delete(self, pet_id: str) -> bool:
+        row = self._session.get(PetRow, pet_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True
+
+
+def _to_shed_record(row: ShedRecordRow) -> ShedRecord:
+    return ShedRecord(
+        id=row.id,
+        pet_id=row.pet_id,
+        started_on=date.fromisoformat(row.started_on),
+        completed_on=date.fromisoformat(row.completed_on) if row.completed_on else None,
+        notes=row.notes,
+        created_at_utc=_parse_utc(row.created_at_utc),
+        updated_at_utc=_parse_utc(row.updated_at_utc),
+    )
+
+
+def _to_shed_record_row(record: ShedRecord) -> ShedRecordRow:
+    return ShedRecordRow(
+        id=record.id,
+        pet_id=record.pet_id,
+        started_on=record.started_on.isoformat(),
+        completed_on=record.completed_on.isoformat() if record.completed_on else None,
+        notes=record.notes,
+        created_at_utc=record.created_at_utc.isoformat(),
+        updated_at_utc=record.updated_at_utc.isoformat(),
+    )
+
+
+class ShedRecordRepository:
+    """shed_records 表的读写；同一宠物一天只能有一条记录。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, record_id: str) -> ShedRecord | None:
+        row = self._session.get(ShedRecordRow, record_id)
+        return _to_shed_record(row) if row is not None else None
+
+    def find_by_started_on(self, pet_id: str, started_on: date) -> ShedRecord | None:
+        row = self._session.scalar(
+            select(ShedRecordRow).where(
+                ShedRecordRow.pet_id == pet_id,
+                ShedRecordRow.started_on == started_on.isoformat(),
+            )
+        )
+        return _to_shed_record(row) if row is not None else None
+
+    def add(self, record: ShedRecord) -> None:
+        self._session.add(_to_shed_record_row(record))
+        self._session.commit()
+
+    def update(self, record: ShedRecord) -> None:
+        self._session.merge(_to_shed_record_row(record))
+        self._session.commit()
+
+    def delete(self, record_id: str) -> bool:
+        row = self._session.get(ShedRecordRow, record_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True
+
+    def list_for_pet(self, pet_id: str) -> list[ShedRecord]:
+        rows = self._session.scalars(
+            select(ShedRecordRow)
+            .where(ShedRecordRow.pet_id == pet_id)
+            .order_by(ShedRecordRow.started_on.desc())
+        ).all()
+        return [_to_shed_record(row) for row in rows]
+
+    def delete_for_pet(self, pet_id: str) -> None:
+        """删除宠物时级联清掉它的蜕皮记录。"""
+        rows = self._session.scalars(
+            select(ShedRecordRow).where(ShedRecordRow.pet_id == pet_id)
+        ).all()
+        for row in rows:
+            self._session.delete(row)
+        self._session.commit()

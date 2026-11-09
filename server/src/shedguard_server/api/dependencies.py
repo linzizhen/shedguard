@@ -14,7 +14,9 @@ from shedguard_server.domain.shedding import StateClassifier
 from shedguard_server.infra.repository import (
     FrameMetricRepository,
     ImageRepository,
+    PetRepository,
     SheddingStateRepository,
+    ShedRecordRepository,
 )
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.judgement import JudgementService
@@ -49,6 +51,18 @@ def get_shedding_state_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> SheddingStateRepository:
     return SheddingStateRepository(session)
+
+
+def get_pet_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PetRepository:
+    return PetRepository(session)
+
+
+def get_shed_record_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ShedRecordRepository:
+    return ShedRecordRepository(session)
 
 
 def get_state_classifier(request: Request) -> StateClassifier | None:
