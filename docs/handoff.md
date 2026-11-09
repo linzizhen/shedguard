@@ -14,6 +14,8 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`。它**能**训「守宫在哪」与「皮是否正在掉」，但**不能**训「蒙白」——标注里的蜕皮样本全是皮已掀起的瞬间，没有一张静止蒙白态；而且分辨率与类别强耦合（短边 < 400px 占 90.9%，蜕皮样本几乎全在高清微距图上），直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习，所以拆成检测器与状态分类器两个模型分别训。
 
+2026-11-09 又做了一轮全网搜索（见 `docs/data-search-2026-11-09.md`）：确认 Kaggle、GitHub、HuggingFace、Zenodo、iNaturalist 上都不存在蜕皮状态标注数据集；从 B 站蜕皮视频（抽帧）、搜狗图片、iNaturalist 收集到 417 张新图片存 `data/collected/`（不入库），全部可见光、无蒙白标注，作为候选池待人工筛选后扩充训练集。蒙白与红外数据依然为零，自采仍是唯一路径。
+
 后端现状（`server/`）：配置校验（21 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`、`POST /api/v1/analysis/{image_id}`（六项体表指标 + 曝光归一化）、`GET /api/v1/series/{device_id}/signals`（稳健 Z 分数与四状态判定）、`POST /api/v1/shedding/{image_id}`（蜕皮状态识别）、`GET /api/v1/series/{device_id}/shedding`（逐日状态与事件推导）、Alembic 四次迁移在启动时自动升级、CI 与 pre-commit。263 个测试，覆盖率 96.5%，ruff 与 mypy strict 全绿。
 
 定位模型（`ml/`）：`yolov8n` 微调 50 轮（RTX 5070 上 3.6 分钟），单类别 `gecko`，测试集 `mAP50 = 0.902 / mAP50-95 = 0.578`，通过 0.85 验收线。导出 `ml/models/gecko-det.onnx`（12.2 MB，不进仓库），已用服务端 `OnnxDetector` 加载真实网图验证，8/8 检出。已知短板：训练集全是可见光，一张红外图都没有。
@@ -48,6 +50,7 @@ shedguard/
 │   ├── gecko-params.md       # 豹纹守宫参数表（已核实第一轮，每条带来源）
 │   ├── shed-detection.md     # 蜕皮识别思路与验证方法
 │   ├── data-survey.md        # 公开数据可获得性调研（结论：必须自采）
+│   ├── data-search-2026-11-09.md # 全网搜索记录（417 张新图，蒙白仍为零）
 │   ├── handoff.md            # 本文件
 │   ├── roadmap.md            # 项目路线图（分阶段规划与验收标准）
 │   └── specs/
@@ -59,7 +62,8 @@ shedguard/
 ├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
 ├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── data/
-│   └── raw/gecko1/           # Roboflow gecko_1 原始数据（1,163 张，不入库）
+│   ├── raw/gecko1/           # Roboflow gecko_1 原始数据（1,163 张，不入库）
+│   └── collected/            # 2026-11-09 全网搜索收集的新图（417 张，不入库）
 ├── ml/
 │   ├── README.md                     # 两个模型的数据集构建、训练、产物与已知限制
 │   ├── requirements.txt              # torch / torchvision / ultralytics（仅训练机）
@@ -91,6 +95,7 @@ shedguard/
 4. ~~M7 蜕皮状态识别~~ —— 已完成：检测 → 裁剪 → 分类，二态模型（`normal` / `shedding`）准确率 0.911，服务端四层打通
 5. ~~导出 Roboflow `capstone-habql/gecko_1`~~ —— 已完成，落在 `data/raw/gecko1/`
 6. **数据流提前启动（Phase 2）** —— 不等固件，先用手机临时机位开始积累影像。这是判断层与状态分类器能否被验证的唯一路径
+6a. **人工复核 `data/collected/` 的 417 张新图** —— 剔除误检与不相关图片，按 normal / shedding / 疑似蒙白 手动标注，然后并入 `ml/datasets/gecko-state/` 重训分类器（见 `docs/data-search-2026-11-09.md`）
 7. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。这一项和数据流是同一件事的两面：自采时每天固定拍，蒙白那 1–2 天自然会被拍到
 8. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图（上传协议已就绪）
 9. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
@@ -122,5 +127,5 @@ shedguard/
 - [x] ~~开发阶段先做固件还是先做后端图像分析~~ —— 已定：先后端接收端点
 - [x] ~~是否注册 Roboflow 账号导出 `capstone-habql/gecko_1`~~ —— 已定：已导出并评估，只用作定位训练集
 - [ ] 判定层的阈值怎么校准 —— 当前 `z ≥ 2.0`、连续 2 天、每天 ≥2 指标全是拍的，没有一条真实蜕皮序列可验证。等 Phase 2 采到数据后回头调参，这是项目当前最大的技术风险
-- [ ] 蒙白数据从哪来 —— 公开数据里一张蒙白图都没有，现在只能跑二态。产品真正值钱的是蒙白预警（皮还完整、加湿还来得及），而「正在蜕皮」已经晚了。只能靠自采
+- [ ] 蒙白数据从哪来 —— 公开数据里一张蒙白图都没有，现在只能跑二态。2026-11-09 全网搜索（`docs/data-search-2026-11-09.md`）从 B 站/搜狗图片/iNaturalist 收了 417 张候选图，可能有零星蒙白，但量级远不够训练。产品真正值钱的是蒙白预警（皮还完整、加湿还来得及），而「正在蜕皮」已经晚了。只能靠自采
 - [ ] 数据自采的机位与频次（手机临时机位方案，见 `docs/roadmap.md` Phase 2）
