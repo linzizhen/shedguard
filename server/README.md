@@ -1,6 +1,6 @@
 # shedguard-server
 
-爬宠蜕皮预警系统的后端图片接入服务。负责接收设备上传的照片、按日期与设备归档、把元数据写入 SQLite，并把每天的照片收敛成可供每日对比分析消费的序列，同时记录人工标注的蜕皮事件、计算体表指标、判定蜕皮状态。
+爬宠蜕皮预警系统的后端服务。负责接收设备上传的照片、按日期与设备归档、把元数据写入 SQLite，并把每天的照片收敛成可供每日对比分析消费的序列，同时记录人工标注的蜕皮事件、计算体表指标、判定蜕皮状态。App 上线后新增宠物档案、手动蜕皮日志、下一次蜕皮预测、拍照查验、护理知识库与卡皮风险评估六组接口。
 
 设计依据：
 
@@ -9,6 +9,7 @@
 - [`../docs/specs/2026-11-02-shed-detection-core-design.md`](../docs/specs/2026-11-02-shed-detection-core-design.md)（M5 信号层）
 - [`../docs/specs/2026-11-02-shed-judgement-design.md`](../docs/specs/2026-11-02-shed-judgement-design.md)（M6 判定层）
 - [`../docs/specs/2026-11-04-shedding-state-design.md`](../docs/specs/2026-11-04-shedding-state-design.md)（蜕皮状态识别）
+- [`../docs/specs/2026-11-09-app-and-firmware-design.md`](../docs/specs/2026-11-09-app-and-firmware-design.md)（App 与固件配套接口）
 
 ## 当前进度
 
@@ -19,6 +20,7 @@
 - M4（定位模型）：YOLOv8n 训练完成，测试集 mAP50 0.902，ONNX 已接入。
 - M6（判定层）：稳健 Z 分数、方向性判定、告警状态与趋势端点——已完成。
 - M7（蜕皮状态识别）：定位 + 独立分类器、四态判定、每日投票聚合、事件由状态转换推导——已完成，分类模型为二态占位。
+- M8（App 配套接口）：宠物档案、手动蜕皮日志、下一次蜕皮预测、拍照查验聚合、护理知识库、卡皮风险评估——已完成。
 
 ## 运行
 
@@ -276,6 +278,90 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 
 当前分类模型是在公开爬宠数据集上训的二态占位模型（`ml/README.md` 有训练细节）：训练集物种混杂、没有红外图、**蒙白类样本为零**。它能证明链路通，不能当作产品精度。详见规格第 9 节。
 
+## 宠物档案与蜕皮日志（App 接口）
+
+面向手机 App 的六组接口，设计依据见规格 `2026-11-09-app-and-firmware-design.md`。
+
+### 宠物档案
+
+- `GET /api/v1/pets`：列表，按创建时间倒序。
+- `POST /api/v1/pets`：新建，请求体 `{"name": "小橘", "species": "豹纹守宫", "morph": "橘化", "birth_date": "2025-06-01"}`，只有 `name` 必填（非空、≤64 字符），上限 20 只。
+- `GET /api/v1/pets/{pet_id}`、`PUT /api/v1/pets/{pet_id}`、`DELETE /api/v1/pets/{pet_id}`（级联删除蜕皮记录）。
+
+### 蜕皮日志
+
+- `GET /api/v1/pets/{pet_id}/shed-records`：按开始日倒序。
+- `POST /api/v1/pets/{pet_id}/shed-records`：`{"started_on": "2026-10-25", "completed_on": "2026-10-27", "notes": "完整蜕皮"}`。`completed_on` 可空（进行中），早于 `started_on` 报 400，同宠物同开始日报 `409 CONFLICT`。
+- `PUT /api/v1/pets/{pet_id}/shed-records/{record_id}`、`DELETE .../{record_id}`。
+
+### 下一次蜕皮预测
+
+`GET /api/v1/pets/{pet_id}/shed-prediction?today=YYYY-MM-DD`（`today` 缺省取服务端当天）：
+
+```json
+{
+  "pet_id": "01M6...",
+  "predictable": true,
+  "reason": null,
+  "median_interval_days": 27,
+  "mad_days": 3,
+  "next_window_start": "2026-11-18",
+  "next_window_end": "2026-11-24",
+  "based_on_cycles": 2,
+  "today": "2026-11-09"
+}
+```
+
+- 至少 3 条**完整**记录（有 `completed_on`）才能算出 ≥2 个间隔；不足时 `predictable: false` 并说明原因。
+- 预测窗口 = 最后一次开始日 + (中位间隔 − MAD) 到 (中位间隔 + MAD)；窗口已过则判不可预测并提示确认是否有漏记。
+
+### 拍照查验（聚合端点）
+
+`POST /api/v1/pets/{pet_id}/check-photo`，`multipart/form-data`（字段 `file`）或裸 `image/*` 请求体。一次调用完成：上传（`device_id` 为 `pet-{pet_id}`）→ 定位 → 分类 → 返回状态与照护建议：
+
+```json
+{
+  "image_id": "01M6...",
+  "state": "shedding",
+  "confidence": 0.9985,
+  "probabilities": {"normal": 0.0015, "shedding": 0.9985},
+  "advice": "守宫正在蜕皮。保持饲养箱湿度在 50% 以上，提供湿润躲避穴，切勿强行撕扯皮肤；..."
+}
+```
+
+`advice` 按四态映射：正常给观察要点、蒙白给加湿建议、蜕皮中给环境管理提醒、未知建议重拍。状态分类模型未配置时返回 `503 MODEL_UNAVAILABLE`。
+
+### 护理知识库
+
+- `GET /api/v1/knowledge/topics`：话题列表（overview / environment / feeding / shedding-basics / stuck-shed / hydration），静态内容不走数据库。
+- `GET /api/v1/knowledge/topics/{slug}`：话题详情，`sections` 为标题+要点数组。未知 slug 返回 404。
+
+内容来源 `docs/gecko-params.md`（已核实修订，来源分级见该文档）。
+
+### 卡皮风险评估
+
+`POST /api/v1/risk-assessment`，请求体六道单选题：
+
+```json
+{
+  "last_shed_complete": "complete | partial | stuck | unknown",
+  "eye_condition": "clear | dull | retained_spectacle",
+  "toe_condition": "normal | discolored | swollen",
+  "hydration": "daily | occasional | rarely_never",
+  "humidity": "below_30 | unknown | above_50",
+  "water_bowl": "fresh_daily | stale_or_absent"
+}
+```
+
+规则引擎打分（部分残留/大片残留 +3、眼部残留 +3 且附带就医警告、脚趾肿胀 +3 / 变色 +2、饮水极少 +2、湿度不足或未知 +1、水碗不洁 +1），0–1 `low`、2–4 `moderate`、≥5 `high`；响应含逐项 `factors` 说明与 `vet_warning`（仅眼部残留触发）。
+
+### App 接口错误码补充
+
+| 码 | 状态 | 触发场景 |
+|---|---|---|
+| `CONFLICT` | 409 | 同宠物同日已有蜕皮记录 |
+
+
 ### 错误码
 
 | 码 | 状态 | 触发场景 |
@@ -284,7 +370,8 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `EMPTY_PAYLOAD` | 400 | 请求体为空 |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | 魔数既非 JPEG 也非 PNG |
 | `PAYLOAD_TOO_LARGE` | 413 | 超过 `SHEDGUARD_MAX_UPLOAD_BYTES` |
-| `NOT_FOUND` | 404 | 图片不存在 |
+| `NOT_FOUND` | 404 | 图片或宠物不存在 |
+| `CONFLICT` | 409 | 同宠物同开始日已有蜕皮记录 |
 | `STORAGE_UNAVAILABLE` | 503 | 数据目录、数据库或模型文件不可用 |
 | `MODEL_UNAVAILABLE` | 503 | 状态分类模型未配置或加载失败 |
 | `INTERNAL_ERROR` | 500 | 未预期异常 |
@@ -365,8 +452,8 @@ server/
     api/
       dependencies.py   依赖装配
       params.py         查询参数解析
-      routes/           HTTP 路由（health / images / series / shed-events / analysis / shedding）
-    domain/             领域规则（校验、命名、时间、序列、事件、成像、检测、指标、判定、蜕皮状态）
+      routes/           HTTP 路由（health / images / series / shed-events / analysis / shedding / pets / knowledge / risk）
+    domain/             领域规则（校验、命名、时间、序列、事件、成像、检测、指标、判定、蜕皮状态、宠物、知识、风险）
     services/           用例编排
     infra/              数据库、存储、迁移执行、图像解码、ONNX 检测器与分类器
     migrations/         Alembic 版本

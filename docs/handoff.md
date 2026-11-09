@@ -6,17 +6,17 @@
 
 ## 项目一句话
 
-shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃上的摄像头，AI 每天固定机位拍一张，识别守宫处于哪个蜕皮阶段（正常 / 蒙白 / 蜕皮中），在需要加湿的时候告诉主人「它要蜕了，现在该做什么」。第一版先做状态识别；「提前几天预测」要等个体周期基线积累出来再做。
+shedguard：给爬宠主人的蜕皮管理工具。**主线是手机 App**（拍照查验蜕皮状态 + 手动蜕皮日志 + 下次蜕皮预测 + 护理知识库 + 卡皮风险评估），**固件（ESP32-S3-EYE + 红外）并行开发**——摄像头每天固定机位拍一张、自动判定蜕皮阶段，是 App 数据积累够之后的长线升级。第一版只支持干燥型地栖守宫（豹纹、肥尾）。
 
 ## 当前阶段
 
-**Phase 1 完成（M1 骨架 → M2 图片接入 → M3 时序输入层 → M5 信号层 → M4 定位模型 → M6 判定层 → M7 蜕皮状态识别）—— 后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序算出「今天是否异常」，还能对每张图判定「正常 / 蒙白 / 蜕皮中」并推导蜕皮事件；两个模型都已训练并在服务端跑通。下一步是真实数据采集（Phase 2）。**
+**Phase 1 完成（M1→M7）+ M8 App 配套后端接口完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态，并为 App 提供宠物档案、手动蜕皮日志、周期预测、拍照查验、知识库、风险评估六组接口。下一步：React Native App（Phase 4）与 ESP-IDF 固件（Phase 3）并行。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`。它**能**训「守宫在哪」与「皮是否正在掉」，但**不能**训「蒙白」——标注里的蜕皮样本全是皮已掀起的瞬间，没有一张静止蒙白态；而且分辨率与类别强耦合（短边 < 400px 占 90.9%，蜕皮样本几乎全在高清微距图上），直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习，所以拆成检测器与状态分类器两个模型分别训。
 
 2026-11-09 又做了一轮全网搜索（见 `docs/data-search-2026-11-09.md`）：确认 Kaggle、GitHub、HuggingFace、Zenodo、iNaturalist 上都不存在蜕皮状态标注数据集；从 B 站蜕皮视频（抽帧）、搜狗图片、iNaturalist 收集到 417 张新图片存 `data/collected/`（不入库），全部可见光、无蒙白标注，作为候选池待人工筛选后扩充训练集。蒙白与红外数据依然为零，自采仍是唯一路径。
 
-后端现状（`server/`）：配置校验（21 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`、`POST /api/v1/analysis/{image_id}`（六项体表指标 + 曝光归一化）、`GET /api/v1/series/{device_id}/signals`（稳健 Z 分数与四状态判定）、`POST /api/v1/shedding/{image_id}`（蜕皮状态识别）、`GET /api/v1/series/{device_id}/shedding`（逐日状态与事件推导）、Alembic 四次迁移在启动时自动升级、CI 与 pre-commit。263 个测试，覆盖率 96.5%，ruff 与 mypy strict 全绿。
+后端现状（`server/`）：配置校验（21 个 `SHEDGUARD_*` 项）、结构化 JSON 日志与 `request_id` 贯穿、统一错误契约、`/healthz` 与 `/readyz`、`POST /api/v1/images`（multipart 或裸 body、SHA-256 幂等）、`GET /api/v1/images`（按天分页）、取原图与元数据、`GET /api/v1/series`（每日代表帧与缺失日）、`PUT/GET /api/v1/shed-events`、`POST /api/v1/analysis/{image_id}`（六项体表指标 + 曝光归一化）、`GET /api/v1/series/{device_id}/signals`（稳健 Z 分数与四状态判定）、`POST /api/v1/shedding/{image_id}`（蜕皮状态识别）、`GET /api/v1/series/{device_id}/shedding`（逐日状态与事件推导）；**App 配套六组**：`/api/v1/pets`（CRUD + 级联删除）、`/api/v1/pets/{id}/shed-records`（CRUD + 同日 409）、`/api/v1/pets/{id}/shed-prediction`（中位数±MAD 窗口预测）、`/api/v1/pets/{id}/check-photo`（上传+分类+建议一次完成）、`/api/v1/knowledge/topics`（6 话题静态知识库）、`/api/v1/risk-assessment`（卡皮风险规则引擎）；Alembic 五次迁移在启动时自动升级、CI 与 pre-commit。**319 个测试，覆盖率 96.79%**，ruff 与 mypy strict 全绿。
 
 定位模型（`ml/`）：`yolov8n` 微调 50 轮（RTX 5070 上 3.6 分钟），单类别 `gecko`，测试集 `mAP50 = 0.902 / mAP50-95 = 0.578`，通过 0.85 验收线。导出 `ml/models/gecko-det.onnx`（12.2 MB，不进仓库），已用服务端 `OnnxDetector` 加载真实网图验证，8/8 检出。已知短板：训练集全是可见光，一张红外图都没有。
 
@@ -34,6 +34,8 @@ shedguard：给爬宠主人的蜕皮预警设备。一个夹在饲养箱玻璃�
 | 产品切口收缩 | 从「提前 2–5 天预测」收缩为「识别蜕皮状态并提示」 | 预测需要个体周期基线，而蜕皮频率连公开资料都没有一致值（跨度 5 天到 2 个月）；状态识别能立刻做出可用产品，预测等真实数据积累后再上 |
 | 状态识别架构 | 检测器出框 → 裁剪 → 独立分类器判状态 | 状态定义会反复改（二态 → 三态 → 可能分卡皮），捆进检测器则每改一次就要重训检测器；分开后检测器半年不用动 |
 | 状态输出 | 四态：`normal` / `opaque` / `shedding` / `unknown` | 「已蜕完」不是视觉状态而是状态转换事件，由服务层推导；`unknown` 是服务层判定，模型不能直接输出 |
+| 产品方向 | 手机 App 为主线交付物，固件并行开发 | 用户不自采数据（无守宫），蒙白/红外/时序全为零，硬件自动预警做不了；App 能立刻复用现有分类器+知识库交付价值，用户使用中积累数据 |
+| App 技术栈 | React Native + TypeScript，后端沿用 FastAPI，固件 ESP-IDF (C) | 用户选定 |
 | 第一版范围 | 只支持干燥型地栖守宫（豹纹、肥尾） | 饲养参数统一，先做深再扩展 |
 | 名字 | shedguard | 曾考虑「守蜕」，因谐音 sorry 被否 |
 | 技术分层 | 事实层（传感器/记录）→ 标准层（知识库）→ 判断层（AI+规则） | 灌知识用 RAG，不用微调 |
@@ -58,7 +60,8 @@ shedguard/
 │       ├── 2026-11-02-series-and-events-design.md     # 每日序列与蜕皮事件设计规格
 │       ├── 2026-11-02-shed-detection-core-design.md   # 蜕皮识别三层架构（定位/信号/时序）
 │       ├── 2026-11-02-shed-judgement-design.md        # 时序判定层（稳健 Z 分数与告警状态机）
-│       └── 2026-11-04-shedding-state-design.md        # 蜕皮状态识别（四态、事件推导、分类器接入）
+│       ├── 2026-11-04-shedding-state-design.md        # 蜕皮状态识别（四态、事件推导、分类器接入）
+│       └── 2026-11-09-app-and-firmware-design.md      # App 与固件配套（六组新接口、App 界面、固件任务）
 ├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
 ├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── data/
@@ -73,8 +76,8 @@ shedguard/
 │   ├── train_state_classifier.py     # 训 resnet18/mobilenet 并导出 ONNX + labels.json
 │   ├── datasets/gecko-det/           # 检测数据集（1,120 图 / 1,124 框，不入库）
 │   └── datasets/gecko-state/         # 状态数据集（845 正常 / 275 蜕皮，不入库）
-├── firmware/README.md        # ESP32-S3-EYE 固件占位
-├── server/                   # 后端服务（图片接入与分析已完成）
+├── firmware/README.md        # ESP32-S3-EYE 固件占位（ESP-IDF + C，Phase 3 待开工）
+├── server/                   # 后端服务（图片接入、分析、判定、状态识别、App 六组接口全部完成）
 │   ├── README.md             # 运行、接口、配置与开发说明
 │   ├── pyproject.toml        # 依赖、ruff、mypy、pytest、覆盖率配置
 │   ├── alembic.ini           # 迁移配置
@@ -82,7 +85,7 @@ shedguard/
 │   ├── .env.example          # 配置样例
 │   ├── src/shedguard_server/ # api、domain、services、infra、migrations
 │   └── tests/                # unit 与 integration
-└── app/README.md             # 前端占位
+└── app/README.md             # React Native App 占位（Phase 4 下一步主线）
 ```
 
 ## 下一步（按顺序）
@@ -94,11 +97,12 @@ shedguard/
 3. ~~M6 时序判定层~~ —— 已完成：`GET /api/v1/series/{device_id}/signals`，稳健 Z 分数 + 四状态机
 4. ~~M7 蜕皮状态识别~~ —— 已完成：检测 → 裁剪 → 分类，二态模型（`normal` / `shedding`）准确率 0.911，服务端四层打通
 5. ~~导出 Roboflow `capstone-habql/gecko_1`~~ —— 已完成，落在 `data/raw/gecko1/`
-6. **数据流提前启动（Phase 2）** —— 不等固件，先用手机临时机位开始积累影像。这是判断层与状态分类器能否被验证的唯一路径
-6a. **人工复核 `data/collected/` 的 417 张新图** —— 剔除误检与不相关图片，按 normal / shedding / 疑似蒙白 手动标注，然后并入 `ml/datasets/gecko-state/` 重训分类器（见 `docs/data-search-2026-11-09.md`）
-7. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。这一项和数据流是同一件事的两面：自采时每天固定拍，蒙白那 1–2 天自然会被拍到
-8. 固件跑通（Phase 3）：拍照 → WiFi 上传 → 服务端收到图（上传协议已就绪）
-9. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
+6. ~~M8 App 配套后端接口~~ —— 已完成：宠物/日志/预测/拍照查验/知识库/风险评估六组，319 测试全绿，真机冒烟通过（见规格第 10 节实现记录）
+7. **React Native App（Phase 4）** —— 后端接口全部就绪，App 是当前主线。设计系统已定（Claymorphism 风格，橙色主色 #F97316），Sleek 原型四屏已出（拍照/日志/风险/设置），知识页因积分用完未生成。骨架起步：导航 + 网络层 + 宠物管理
+8. **ESP-IDF 固件（Phase 3）** —— 与 App 并行。骨架：WiFi → NTP → 拍照 → 上传，已有板子可开始
+9. **人工复核 `data/collected/` 的 417 张新图** —— 剔除误检与不相关图片，按 normal / shedding / 疑似蒙白 手动标注，然后并入 `ml/datasets/gecko-state/` 重训分类器（见 `docs/data-search-2026-11-09.md`）
+10. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。App 上线后靠用户拍照积累，或后续自采
+11. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
 
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
 
@@ -123,6 +127,7 @@ shedguard/
 ## 待确认
 
 - [x] ~~是否先买一只豹纹守宫~~ —— 已定：不买，先用公开数据与手机自采起步
+- [x] ~~数据自采的机位与频次（手机临时机位）~~ —— 已被 m04706 决策取代：不自采，App 拍照查验是数据入口，靠使用积累
 - [x] ~~后端规格的三个技术决策~~ —— 已定：FastAPI + SQLAlchemy + Alembic、`/api/v1`、默认监听 `127.0.0.1`
 - [x] ~~开发阶段先做固件还是先做后端图像分析~~ —— 已定：先后端接收端点
 - [x] ~~是否注册 Roboflow 账号导出 `capstone-habql/gecko_1`~~ —— 已定：已导出并评估，只用作定位训练集
