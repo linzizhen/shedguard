@@ -31,6 +31,12 @@
           "cameraPermission": "ShedGuard 需要使用相机，以便拍摄守宫照片进行蜕皮查验。",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F97316"
+        }
       ]
     ],
     "experiments": {

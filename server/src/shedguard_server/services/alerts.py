@@ -102,6 +102,9 @@ class AlertService:
                 # token 已失效：清理掉，避免后续反复尝试。
                 self._devices.delete(target.id)
                 any_attempt_failed = True
+            elif outcome.status is PushStatus.SKIPPED:
+                # 推送被禁用（SkippedPushGateway）：不算失败，提醒仍可在 App 列表查看。
+                continue
             else:
                 any_attempt_failed = True
 

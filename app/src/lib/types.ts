@@ -63,6 +63,46 @@ export interface ShedPrediction {
   based_on_cycles: number;
 }
 
+// ---------- 蜕皮提醒（/api/v1/alerts、/api/v1/devices） ----------
+
+export type PushStatus = 'pending' | 'sent' | 'failed' | 'skipped';
+
+export interface AlertItem {
+  id: string;
+  device_id: string;
+  pet_id: string | null;
+  kind: string;
+  local_date: string;
+  state: ShedState;
+  image_id: string;
+  confidence: number | null;
+  created_at_utc: string;
+  delivered_at_utc: string | null;
+  read_at_utc: string | null;
+  push_status: PushStatus;
+}
+
+export interface AlertListResponse {
+  items: AlertItem[];
+}
+
+export interface PushDevice {
+  id: string;
+  device_id: string | null;
+  pet_id: string | null;
+  expo_push_token: string;
+  platform: 'ios' | 'android' | 'web';
+  created_at_utc: string;
+  updated_at_utc: string;
+}
+
+export interface DeviceRegisterInput {
+  expo_push_token: string;
+  platform: 'ios' | 'android' | 'web';
+  device_id?: string;
+  pet_id?: string;
+}
+
 // ---------- 知识库（/api/v1/knowledge/topics） ----------
 
 export interface KnowledgeTopicSummary {

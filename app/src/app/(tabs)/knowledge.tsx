@@ -2,7 +2,7 @@
  * 知识 Tab：六个话题卡片列表，点击进入详情。
  * 后端：GET /api/v1/knowledge/topics。
  */
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, EmptyState, PageHeader, Screen } from '@/components/ui';
@@ -37,20 +37,22 @@ export default function KnowledgeScreen() {
       ) : (
         <View style={styles.list}>
           {(topicsQuery.data?.items ?? []).map((topic, index) => (
-            <Link key={topic.slug} href={`/topic/${topic.slug}`} asChild>
-              <Pressable style={({ pressed }) => [styles.topicCard, pressed && styles.topicPressed]}>
-                <View style={styles.indexBadge}>
-                  <Text style={styles.indexText}>{index + 1}</Text>
-                </View>
-                <View style={styles.topicBody}>
-                  <Text style={styles.topicTitle}>{topic.title}</Text>
-                  <Text style={styles.topicSummary} numberOfLines={2}>
-                    {topic.summary}
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            </Link>
+            <Pressable
+              key={topic.slug}
+              onPress={() => router.push(`/topic/${topic.slug}`)}
+              style={({ pressed }) => [styles.topicCard, pressed && styles.topicPressed]}
+            >
+              <View style={styles.indexBadge}>
+                <Text style={styles.indexText}>{index + 1}</Text>
+              </View>
+              <View style={styles.topicBody}>
+                <Text style={styles.topicTitle}>{topic.title}</Text>
+                <Text style={styles.topicSummary} numberOfLines={2}>
+                  {topic.summary}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
           ))}
         </View>
       )}

@@ -3,7 +3,7 @@
  * 这是骨架的核心屏：网络层与宠物 CRUD 都在这里落地。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -17,7 +17,9 @@ import {
   SecondaryButton,
   SectionTitle,
 } from '@/components/ui';
+import { useEnablePush } from '@/hooks/useAlerts';
 import { usePets } from '@/hooks/usePets';
+import { saveDeviceId, useDeviceId } from '@/lib/deviceId';
 import { saveServerUrl, useServerUrl } from '@/lib/serverUrl';
 import type { Pet } from '@/lib/types';
 import { clayPress, colors, radius } from '@/lib/theme';
@@ -85,12 +87,13 @@ export default function SettingsScreen() {
       <Card style={styles.gapColumn}>
         <View style={styles.rowBetween}>
           <SectionTitle>宠物管理</SectionTitle>
-          <Link href="/pet/new" asChild>
-            <Pressable style={({ pressed }) => [styles.addChip, pressed && clayPress]}>
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-              <Text style={styles.addChipText}>添加</Text>
-            </Pressable>
-          </Link>
+          <Pressable
+            onPress={() => router.push('/pet/new')}
+            style={({ pressed }) => [styles.addChip, pressed && clayPress]}
+          >
+            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Text style={styles.addChipText}>添加</Text>
+          </Pressable>
         </View>
 
         {!serverUrl ? (
@@ -123,8 +126,86 @@ export default function SettingsScreen() {
           </View>
         )}
       </Card>
+
+      <DeviceCard />
     </Screen>
   );
+}
+
+function DeviceCard() {
+  const serverUrl = useServerUrl();
+  const savedDeviceId = useDeviceId();
+  const pets = usePets();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [boundPetId, setBoundPetId] = useState<string | null>(null);
+  const { state, enable, isPending } = useEnablePush();
+  const value = draft ?? savedDeviceId;
+  const petItems = pets.data?.items ?? [];
+  const selectedPetId = boundPetId ?? petItems[0]?.id ?? null;
+
+  async function handleEnable(): Promise<void> {
+    if (!value.trim()) return;
+    await saveDeviceId(value);
+    setDraft(null);
+    await enable(value, selectedPetId);
+  }
+
+  return (
+    <Card style={styles.gapColumn}>
+      <SectionTitle>摄像头与提醒</SectionTitle>
+      <Text style={styles.hint}>
+        填上摄像头的设备编号并绑定一只宠物。设备检测到蜕皮时，会推送提醒到这里。
+      </Text>
+      <Field
+        label="设备编号（device_id）"
+        value={value}
+        onChangeText={(text) => setDraft(text)}
+        placeholder="gecko-eye-01"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <Text style={styles.pickLabel}>绑定宠物</Text>
+      {petItems.length === 0 ? (
+        <Text style={styles.hint}>先在「宠物管理」里添加一只宠物</Text>
+      ) : (
+        <View style={styles.chipWrap}>
+          {petItems.map((pet) => {
+            const active = pet.id === selectedPetId;
+            return (
+              <Pressable
+                key={pet.id}
+                onPress={() => setBoundPetId(pet.id)}
+                style={[styles.petChip, active && styles.petChipActive]}
+              >
+                <Text style={[styles.petChipText, active && styles.petChipTextActive]}>
+                  {pet.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      <PrimaryButton
+        title={isPending ? '正在启用…' : '保存并启用通知'}
+        onPress={() => void handleEnable()}
+        loading={isPending}
+        disabled={!serverUrl || !value.trim()}
+      />
+      <PushStatusText state={state} />
+    </Card>
+  );
+}
+
+function PushStatusText({ state }: { state: ReturnType<typeof useEnablePush>['state'] }) {
+  if (state.kind === 'idle') return null;
+  if (state.kind === 'working') {
+    return <Text style={styles.hint}>正在申请通知权限并注册…</Text>;
+  }
+  if (state.kind === 'ok') {
+    return <Text style={[styles.hint, { color: colors.success }]}>✓ 已启用，检测到蜕皮会推送提醒</Text>;
+  }
+  const color = state.kind === 'denied' || state.kind === 'error' ? colors.destructive : colors.warning;
+  return <Text style={[styles.hint, { color }]}>{state.message}</Text>;
 }
 
 function TestStatus({ state }: { state: TestState }) {
@@ -147,18 +228,19 @@ function TestStatus({ state }: { state: TestState }) {
 function PetRow({ pet }: { pet: Pet }) {
   const subtitle = [pet.species, pet.morph].filter(Boolean).join(' · ') || '未填写品种';
   return (
-    <Link href={`/pet/${pet.id}`} asChild>
-      <Pressable style={({ pressed }) => [styles.petRow, pressed && clayPress]}>
-        <View style={styles.petAvatar}>
-          <Ionicons name="paw" size={20} color={colors.primary} />
-        </View>
-        <View style={styles.grow}>
-          <Text style={styles.petName}>{pet.name}</Text>
-          <Text style={styles.petSub}>{subtitle}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
-    </Link>
+    <Pressable
+      onPress={() => router.push(`/pet/${pet.id}`)}
+      style={({ pressed }) => [styles.petRow, pressed && clayPress]}
+    >
+      <View style={styles.petAvatar}>
+        <Ionicons name="paw" size={20} color={colors.primary} />
+      </View>
+      <View style={styles.grow}>
+        <Text style={styles.petName}>{pet.name}</Text>
+        <Text style={styles.petSub}>{subtitle}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+    </Pressable>
   );
 }
 
@@ -231,5 +313,40 @@ const styles = StyleSheet.create({
   petSub: {
     fontSize: 12,
     color: colors.mutedForeground,
+  },
+  hint: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.mutedForeground,
+  },
+  pickLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.foreground,
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  petChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  petChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  petChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.foreground,
+  },
+  petChipTextActive: {
+    color: '#FFFFFF',
   },
 });

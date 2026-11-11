@@ -1,5 +1,5 @@
 /**
- * 蜕皮日志、周期预测与拍照查验 hooks。
+ * 蜕皮日志与拍照查验 hooks。
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,7 +8,6 @@ import { apiFetch } from '@/lib/api';
 import { useServerUrl } from '@/lib/serverUrl';
 import type {
   CheckPhotoResult,
-  ShedPrediction,
   ShedRecord,
   ShedRecordInput,
   ShedRecordListResponse,
@@ -24,15 +23,6 @@ export function useShedRecords(petId: string | null) {
   });
 }
 
-export function useShedPrediction(petId: string | null) {
-  const serverUrl = useServerUrl();
-  return useQuery({
-    queryKey: ['shed-prediction', serverUrl, petId],
-    queryFn: () => apiFetch<ShedPrediction>(`/api/v1/pets/${petId}/shed-prediction`),
-    enabled: serverUrl !== '' && petId !== null,
-  });
-}
-
 export function useCreateShedRecord(petId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -43,7 +33,6 @@ export function useCreateShedRecord(petId: string) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['shed-records'] });
-      void queryClient.invalidateQueries({ queryKey: ['shed-prediction'] });
     },
   });
 }
@@ -58,7 +47,6 @@ export function useUpdateShedRecord(petId: string) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['shed-records'] });
-      void queryClient.invalidateQueries({ queryKey: ['shed-prediction'] });
     },
   });
 }
@@ -72,7 +60,6 @@ export function useDeleteShedRecord(petId: string) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['shed-records'] });
-      void queryClient.invalidateQueries({ queryKey: ['shed-prediction'] });
     },
   });
 }

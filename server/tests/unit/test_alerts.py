@@ -244,6 +244,23 @@ class TestDeliver:
         assert delivered.push_status == PUSH_FAILED
         assert delivered.delivered_at_utc is None
 
+    def test_skips_when_gateway_disabled(self) -> None:
+        devices = FakeDeviceRepository([make_device()])
+        service = make_service(devices=devices, gateway=FakeGateway(PushStatus.SKIPPED))
+        alert = service.create_for_transition(
+            device_id="device-1",
+            local_date=date(2026, 11, 11),
+            state="shedding",
+            image_id="img1",
+            confidence=0.9,
+            pet_id="pet1",
+            now=NOW,
+        )
+        assert alert is not None
+        delivered = service.deliver(alert, now=NOW)
+        assert delivered.push_status == PUSH_SKIPPED
+        assert delivered.delivered_at_utc is None
+
     def test_cooldown_skips_recent_delivery(self) -> None:
         devices = FakeDeviceRepository([make_device()])
         gateway = FakeGateway(PushStatus.SENT)

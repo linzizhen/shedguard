@@ -1,47 +1,69 @@
 /**
- * 蜕皮日志 Tab：宠物切换 + 下次蜕皮预测 + 蜕皮记录时间线 + 添加/完成/删除。
- * 后端：GET/POST /api/v1/pets/{id}/shed-records、GET /api/v1/pets/{id}/shed-prediction。
+ * 蜕皮日志 Tab：宠物切换 + 蜕皮提醒 + 蜕皮记录时间线 + 添加/完成/删除。
+ * 后端：GET/POST /api/v1/pets/{id}/shed-records、GET /api/v1/alerts。
  */
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { PetPicker } from '@/components/PetPicker';
 import { Card, EmptyState, PageHeader, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import { useAlerts } from '@/hooks/useAlerts';
 import {
   useCreateShedRecord,
   useDeleteShedRecord,
-  useShedPrediction,
   useShedRecords,
   useUpdateShedRecord,
 } from '@/hooks/useShed';
 import { usePets } from '@/hooks/usePets';
+import { useDeviceId } from '@/lib/deviceId';
 import { useServerUrl } from '@/lib/serverUrl';
 import { todayIso, formatDateCn } from '@/lib/dates';
 import { colors, radius } from '@/lib/theme';
-import type { Pet, ShedPrediction, ShedRecord } from '@/lib/types';
+import type { AlertItem, Pet, ShedRecord } from '@/lib/types';
 
-function PredictionCard({ prediction }: { prediction: ShedPrediction }) {
-  if (!prediction.predictable) {
-    return (
-      <Card style={[styles.predCard, { borderColor: colors.accent }]}>
-        <Text style={styles.predTitle}>下次蜕皮预测</Text>
-        <Text style={styles.predReason}>{prediction.reason}</Text>
-      </Card>
-    );
-  }
+const ALERT_STATE_LABEL: Record<string, string> = {
+  shedding: '检测到正在蜕皮',
+  opaque: '进入蒙白期',
+  normal: '状态恢复正常',
+  unknown: '状态待确认',
+};
+
+function AlertBanner({ alert, serverUrl }: { alert: AlertItem; serverUrl: string }) {
+  const unread = !alert.read_at_utc;
+  const label = ALERT_STATE_LABEL[alert.state] ?? '蜕皮提醒';
   return (
-    <Card style={[styles.predCard, { borderColor: colors.accent }]}>
-      <Text style={styles.predTitle}>预计下次蜕皮窗口</Text>
-      <Text style={styles.predWindow}>
-        {prediction.next_window_start ? formatDateCn(prediction.next_window_start) : '—'} ~{' '}
-        {prediction.next_window_end ? formatDateCn(prediction.next_window_end) : '—'}
-      </Text>
-      <Text style={styles.predMeta}>
-        基于 {prediction.based_on_cycles} 个完整周期 · 中位间隔{' '}
-        {prediction.median_interval_days ?? '—'} 天
-      </Text>
-    </Card>
+    <Pressable
+      onPress={() =>
+        router.push({
+          pathname: '/alert/[id]',
+          params: {
+            id: alert.id,
+            image_id: alert.image_id,
+            state: alert.state,
+            local_date: alert.local_date,
+            confidence: alert.confidence != null ? String(alert.confidence) : '',
+          },
+        })
+      }
+      style={({ pressed }) => [styles.alertCard, pressed && styles.alertPressed]}
+    >
+      <Image
+        source={{ uri: `${serverUrl}/api/v1/images/${alert.image_id}` }}
+        style={styles.alertThumb}
+      />
+      <View style={styles.alertBody}>
+        <View style={styles.alertTitleRow}>
+          <Text style={styles.alertTitle}>{label}</Text>
+          {unread ? <View style={styles.unreadDot} /> : null}
+        </View>
+        <Text style={styles.alertSub}>
+          {formatDateCn(alert.local_date)}
+          {alert.confidence != null ? ` · 置信度 ${Math.round(alert.confidence * 100)}%` : ''}
+        </Text>
+        <Text style={styles.alertHint}>点开查看原图 ›</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -100,8 +122,9 @@ export default function LogScreen() {
     selectedPetId && pets.some((p) => p.id === selectedPetId) ? selectedPetId : (pets[0]?.id ?? null);
   const activePet = pets.find((p) => p.id === activePetId) ?? null;
 
+  const deviceId = useDeviceId();
   const recordsQuery = useShedRecords(activePetId);
-  const predictionQuery = useShedPrediction(activePetId);
+  const alertsQuery = useAlerts({ petId: activePetId, deviceId: deviceId || null });
   const createMutation = useCreateShedRecord(activePetId ?? '');
   const updateMutation = useUpdateShedRecord(activePetId ?? '');
   const deleteMutation = useDeleteShedRecord(activePetId ?? '');
@@ -160,7 +183,7 @@ export default function LogScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，预测下一次" />
+        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
         <Card>
           <EmptyState
             icon="cloud-offline"
@@ -175,7 +198,7 @@ export default function LogScreen() {
   if (petsQuery.isLoading) {
     return (
       <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，预测下一次" />
+        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
         <Card>
           <EmptyState icon="hourglass" title="加载中…" />
         </Card>
@@ -186,7 +209,7 @@ export default function LogScreen() {
   if (petsQuery.isError) {
     return (
       <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，预测下一次" />
+        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
         <Card>
           <EmptyState icon="cloud-offline" title="无法加载宠物列表" subtitle={petsQuery.error.message} />
         </Card>
@@ -197,7 +220,7 @@ export default function LogScreen() {
   if (pets.length === 0) {
     return (
       <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，预测下一次" />
+        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
         <Card>
           <EmptyState icon="paw" title="还没有添加宠物" subtitle="先到「设置」页添加一只宠物" />
         </Card>
@@ -209,13 +232,15 @@ export default function LogScreen() {
 
   return (
     <Screen>
-      <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，预测下一次" />
+      <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
 
       {pets.length > 0 ? (
         <>
           <PetPicker pets={pets} selectedId={activePetId} onSelect={setSelectedPetId} />
 
-          {predictionQuery.data ? <PredictionCard prediction={predictionQuery.data} /> : null}
+          {alertsQuery.data?.items[0] ? (
+            <AlertBanner alert={alertsQuery.data.items[0]} serverUrl={serverUrl} />
+          ) : null}
 
           <View style={styles.sectionHeader}>
             <SectionTitle>蜕皮记录{activePet ? ` · ${activePet.name}` : ''}</SectionTitle>
@@ -252,7 +277,7 @@ export default function LogScreen() {
             </Card>
           ) : records.length === 0 ? (
             <Card>
-              <EmptyState icon="calendar" title="还没有蜕皮记录" subtitle="每次蜕皮后记一条，累积几次就能预测下次" />
+              <EmptyState icon="calendar" title="还没有蜕皮记录" subtitle="每次蜕皮后记一条，方便回看蜕皮周期" />
             </Card>
           ) : (
             <Card style={styles.timelineCard}>
@@ -268,15 +293,16 @@ export default function LogScreen() {
             </Card>
           )}
 
-          <Link href="/risk" asChild>
-            <Pressable style={({ pressed }) => [styles.riskEntry, pressed && styles.riskPressed]}>
-              <View style={styles.riskEntryBody}>
-                <Text style={styles.riskEntryTitle}>卡皮风险评估</Text>
-                <Text style={styles.riskEntrySubtitle}>回答六个问题，看看有没有蜕皮不全的风险</Text>
-              </View>
-              <Text style={styles.riskEntryChevron}>›</Text>
-            </Pressable>
-          </Link>
+          <Pressable
+            onPress={() => router.push('/risk')}
+            style={({ pressed }) => [styles.riskEntry, pressed && styles.riskPressed]}
+          >
+            <View style={styles.riskEntryBody}>
+              <Text style={styles.riskEntryTitle}>卡皮风险评估</Text>
+              <Text style={styles.riskEntrySubtitle}>回答六个问题，看看有没有蜕皮不全的风险</Text>
+            </View>
+            <Text style={styles.riskEntryChevron}>›</Text>
+          </Pressable>
         </>
       ) : (
         <Card>
@@ -305,11 +331,34 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  predCard: { borderWidth: 3, gap: 6 },
-  predTitle: { fontSize: 14, fontWeight: '700', color: colors.accent },
-  predWindow: { fontSize: 22, fontWeight: '800', color: colors.foreground },
-  predMeta: { fontSize: 13, color: colors.mutedForeground },
-  predReason: { fontSize: 14, lineHeight: 21, color: colors.foreground },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.card,
+    borderWidth: 3,
+    borderColor: colors.primary,
+    borderRadius: radius.lg,
+    padding: 12,
+  },
+  alertPressed: { opacity: 0.85 },
+  alertThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.muted,
+  },
+  alertBody: { flex: 1, gap: 3 },
+  alertTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  alertTitle: { fontSize: 15, fontWeight: '800', color: colors.primaryDark },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.destructive,
+  },
+  alertSub: { fontSize: 13, color: colors.mutedForeground },
+  alertHint: { fontSize: 12, fontWeight: '700', color: colors.accent },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
