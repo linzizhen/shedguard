@@ -12,7 +12,7 @@ shedguard：给爬宠主人的蜕皮管理工具。**主线是手机 App**（拍
 
 ## 当前阶段
 
-**Phase 1 完成（M1→M7）+ M8 App 配套后端接口 + M9 App 骨架 + M10 App 四屏 + 网络图复核重训 v2 + M11 蜕皮检测提醒链路（服务端一期）完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态；App 提供宠物档案、手动蜕皮日志、拍照查验、知识库、风险评估五组接口（预测接口保留但标 Deprecated）；**上传图片后服务端自动跑「指标 → 状态判定」，判定为「正在蜕皮」且状态发生跃迁时生成 alert 并通过 Expo 推送**，另有 devices 注册/注销与 alerts 查询/已读接口。App（Expo SDK 58 + React Native + TypeScript）四屏完成：拍照查验、蜕皮日志、知识、设置，另有卡皮风险评估问卷页。分类器 v2 测试准确率 0.9286。**固件骨架（Phase 3 一期）已完成：ESP-IDF v5.4.4 工程，WiFi/NTP/板载 OV2640/白天窗口定时抓拍/multipart 上传/SPIFFS 补传队列，`idf.py build` 编译通过（未上板实测，手边无实物）。下一步：接 App 提醒列表与设备绑定，再上板联调固件。**
+**Phase 1 完成（M1→M7）+ M8 App 配套后端接口 + M9 App 骨架 + M10 App 四屏 + 网络图复核重训 v2 + M11 蜕皮检测提醒链路（服务端一期）完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态；App 提供宠物档案、手动蜕皮日志、拍照查验、知识库、风险评估五组接口（预测接口保留但标 Deprecated）；**上传图片后服务端自动跑「指标 → 状态判定」，判定为「正在蜕皮」且状态发生跃迁时生成 alert 并通过 Expo 推送**，另有 devices 注册/注销与 alerts 查询/已读接口。App（Expo SDK 58 + React Native + TypeScript）四屏完成：拍照查验、蜕皮日志、知识、设置，另有卡皮风险评估问卷页。分类器 v2 测试准确率 0.9286。**固件骨架（Phase 3 一期）已完成：ESP-IDF v5.4.4 工程，WiFi/NTP/板载 OV2640/白天窗口定时抓拍/multipart 上传/SPIFFS 补传队列，`idf.py build` 编译通过（未上板实测，手边无实物）。App 已完成 M12 提醒链路接入：日志屏蜕皮提醒横幅 + 提醒详情页（抓拍原图、自动已读）、`expo-notifications` 推送注册与 `POST /api/v1/devices`、设置屏设备编号绑定宠物。下一步：固件上板联调。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`。它**能**训「守宫在哪」与「皮是否正在掉」，但**不能**训「蒙白」——标注里的蜕皮样本全是皮已掀起的瞬间，没有一张静止蒙白态；而且分辨率与类别强耦合（短边 < 400px 占 90.9%，蜕皮样本几乎全在高清微距图上），直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习，所以拆成检测器与状态分类器两个模型分别训。
 
@@ -91,11 +91,11 @@ shedguard/
 │   ├── .env.example          # 配置样例
 │   ├── src/shedguard_server/ # api、domain、services、infra、migrations
 │   └── tests/                # unit 与 integration
-└── app/                      # React Native App（Expo SDK 58，四屏功能已完成）
-    ├── src/app/              # Expo Router：四 Tab + 宠物表单 + 知识详情 + 风险评估
+└── app/                      # React Native App（Expo SDK 58，四屏功能 + 提醒链路已完成）
+    ├── src/app/              # Expo Router：四 Tab + 宠物表单 + 知识详情 + 风险评估 + 提醒详情
     ├── src/components/       # ui.tsx 黏土风基础件 + PetForm + PetPicker
-    ├── src/hooks/            # usePets / useShed / useKnowledge / useRisk（React Query）
-    └── src/lib/              # theme / api / serverUrl / types / dates
+    ├── src/hooks/            # usePets / useShed / useKnowledge / useRisk / useAlerts（React Query）
+    └── src/lib/              # theme / api / serverUrl / deviceId / types / dates
 ```
 
 ## 下一步（按顺序）
@@ -115,7 +115,8 @@ shedguard/
 11. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。App 上线后靠用户拍照积累，或后续自采
 12. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
 13. ~~M11 蜕皮检测提醒链路（服务端一期）~~ —— 已完成：上传后自动跑指标+状态，状态跃迁生成 alert 并 Expo 推送；新增 devices/alerts 四个接口与迁移 0006，339 测试 / 覆盖率 95.97% 全绿，真机冒烟通过（见规格 §15）
-14. **M12 App 接入提醒链路** —— 删掉日志屏的预测卡片、加「提醒」列表（拉 `GET /api/v1/alerts` + 标记已读）、`expo-notifications` 注册 token 并 `POST /api/v1/devices`、设置屏把设备绑定到宠物
+14. ~~M12 App 接入提醒链路~~ —— 已完成：日志屏删预测卡片、顶部加蜕皮提醒横幅（拉 `GET /api/v1/alerts`，未读红点，点开进详情页看抓拍原图并自动标已读）；`expo-notifications` 注册 token 并 `POST /api/v1/devices`，收到推送即刷新提醒列表；设置屏新增「摄像头与提醒」卡片（设备编号 + 绑定宠物 + 保存并启用通知）。`tsc`/`eslint` 全绿，Expo Web 逐屏截图验证通过
+15. **固件上板联调** —— 手边无实物；上板后验相机出图、白天窗口、SPIFFS 补传，并与服务端真实端点对接
 
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
 
