@@ -132,6 +132,37 @@ RTX 5070 上 15 个 epoch 约 2 分钟，`resnet18` ImageNet 预训练微调，`
 
 服务端集成验证：`OnnxStateClassifier.from_path` 直接加载 44.8 MB 的 `gecko-state.onnx`，真图端到端冒烟里 5 张蜕皮图 4 张判对（置信度 0.997–1.0），1 张置信度 0.513 被降级为 `unknown`，3 张正常图全对。
 
+## 状态分类器：并入网络复核数据（gecko-state-v2，2026-11-11）
+
+把 `docs/data-search-2026-11-09.md` 记录的 343 张网络图逐张复核后，挑出可信的并入训练集，产出 `gecko-state-v2` 并重训，验证「加网络数据到底有没有用」。整条链路是四个脚本：
+
+```powershell
+# 1) 跑检测器裁剪 + 自动打标 + dHash（产物在 data/collected_crops/，已 gitignore）
+$env:PYTHONPATH="server\src"
+.\.venv\Scripts\python.exe ml\curate_collected.py
+# 2) 近重复聚类 + 生成拼图 data/collected_crops/sheets/sheet_XX.jpg 供人工看
+.\.venv\Scripts\python.exe ml\dedup_collected.py
+# 3) 人工逐张判定写进 data/collected_crops/review.csv
+.\.venv\Scripts\python.exe ml\review_collected.py
+# 4) 只把复核通过的并入 train，测试集保持原样，产出 gecko-state-v2
+.\.venv\Scripts\python.exe ml\build_state_dataset_v2.py
+# 5) 用 --dataset 指向 v2 重训
+.\.venv\Scripts\python.exe ml\train_state_classifier.py --name gecko-state-v2 --dataset ml\datasets\gecko-state-v2 --epochs 15
+```
+
+**复核结论（关键事实）**：343 张 → 近重复聚类 325 簇 → 人工只留下 **88 张（normal 68 + shedding 20）**，其余 237 簇丢弃。丢弃主因是物种不对：搜狗那批绝大多数是**睫角守宫、肥尾守宫、睑虎、壁虎科野生种**，以及只有皮屑的特写、远景小目标、空箱/空手、卡通字幕遮挡；还有一批全身奶白无法区分「白化/暴雪基因」与「蒙白」，为不污染类别一律丢弃（这也是 opaque 类仍为零的原因）。
+
+**A/B 对比（测试集均为原始 gecko1 的 80 normal / 32 shedding，未掺入任何网络图）**：
+
+| 指标 | v1（gecko1） | v2（gecko1 + 88 张复核图，只加 train） |
+|---|---|---|
+| 测试集准确率 | 0.9107 | **0.9286** |
+| `normal` recall（80） | 0.9625 | 0.9750 |
+| `shedding` recall（32） | 0.7812 | **0.8125** |
+| 验证集最好准确率 | 0.9255 | 0.9427 |
+
+净收益约 +1.8 个点，`shedding` 召回 +3.1 个点，且没有拖累 `normal`。提升不大是因为真正干净可用的新图只有 88 张——网络数据量看着大，能用的是少数。**结论：v2 在留出测试集上优于 v1，部署时把 `SHEDGUARD_STATE_MODEL` 指向 `ml/models/gecko-state-v2.onnx` 即可**（两个模型文件都在 `ml/models/`，`labels.json` 同名，服务端不硬编码类别）。
+
 ## 已知限制
 
 这些限制对两个模型都成立：

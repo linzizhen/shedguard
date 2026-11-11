@@ -199,12 +199,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--name", default="gecko-state")
+    parser.add_argument(
+        "--dataset",
+        default=str(DATASET_ROOT),
+        help="数据集根目录（含 labels.json 与 train/valid/test），默认 ml/datasets/gecko-state",
+    )
     parser.add_argument("--device", default="", help="留空自动选择；也可显式指定 cpu / 0")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    global DATASET_ROOT
+    DATASET_ROOT = Path(args.dataset)
     if not (DATASET_ROOT / "labels.json").is_file():
         raise SystemExit(f"数据集不存在: {DATASET_ROOT}，先跑 ml/build_state_dataset.py")
 
