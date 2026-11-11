@@ -10,7 +10,7 @@ shedguard：给爬宠主人的蜕皮管理工具。**主线是手机 App**（拍
 
 ## 当前阶段
 
-**Phase 1 完成（M1→M7）+ M8 App 配套后端接口完成 + M9 App 骨架完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态，并为 App 提供宠物档案、手动蜕皮日志、周期预测、拍照查验、知识库、风险评估六组接口；App（Expo SDK 58 + React Native + TypeScript）骨架已提交：四 Tab 导航、网络层、设置屏（服务器地址 + 宠物管理）完整实现，其余三屏占位。下一步：App 逐屏补功能（拍照查验 → 日志 → 知识 → 风险），与 ESP-IDF 固件（Phase 3）并行。**
+**Phase 1 完成（M1→M7）+ M8 App 配套后端接口完成 + M9 App 骨架完成 + M10 App 四屏功能完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态，并为 App 提供宠物档案、手动蜕皮日志、周期预测、拍照查验、知识库、风险评估六组接口；App（Expo SDK 58 + React Native + TypeScript）四屏全部完成：拍照查验（拍照/相册 → 上传判定 → 结果卡片含概率分布与护理建议）、蜕皮日志（预测窗口 + 时间线 + 增删改）、知识（话题列表 + 详情）、设置（服务器地址 + 宠物管理），另有卡皮风险评估问卷页。下一步：ESP-IDF 固件（Phase 3）与人工复核收集的图片扩充训练集。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`。它**能**训「守宫在哪」与「皮是否正在掉」，但**不能**训「蒙白」——标注里的蜕皮样本全是皮已掀起的瞬间，没有一张静止蒙白态；而且分辨率与类别强耦合（短边 < 400px 占 90.9%，蜕皮样本几乎全在高清微距图上），直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习，所以拆成检测器与状态分类器两个模型分别训。
 
@@ -85,11 +85,11 @@ shedguard/
 │   ├── .env.example          # 配置样例
 │   ├── src/shedguard_server/ # api、domain、services、infra、migrations
 │   └── tests/                # unit 与 integration
-└── app/                      # React Native App（Expo SDK 58，骨架已提交）
-    ├── src/app/              # Expo Router：四 Tab + 宠物表单页
-    ├── src/components/       # ui.tsx 黏土风基础件 + PetForm
-    ├── src/hooks/            # usePets（React Query）
-    └── src/lib/              # theme / api / serverUrl / types
+└── app/                      # React Native App（Expo SDK 58，四屏功能已完成）
+    ├── src/app/              # Expo Router：四 Tab + 宠物表单 + 知识详情 + 风险评估
+    ├── src/components/       # ui.tsx 黏土风基础件 + PetForm + PetPicker
+    ├── src/hooks/            # usePets / useShed / useKnowledge / useRisk（React Query）
+    └── src/lib/              # theme / api / serverUrl / types / dates
 ```
 
 ## 下一步（按顺序）
@@ -103,11 +103,11 @@ shedguard/
 5. ~~导出 Roboflow `capstone-habql/gecko_1`~~ —— 已完成，落在 `data/raw/gecko1/`
 6. ~~M8 App 配套后端接口~~ —— 已完成：宠物/日志/预测/拍照查验/知识库/风险评估六组，319 测试全绿，真机冒烟通过（见规格第 10 节实现记录）
 7. ~~M9 App 骨架~~ —— 已完成（`9c3458c`）：Expo SDK 58 + Expo Router + React Query，四 Tab 导航、`apiFetch` 网络层（对齐后端错误契约）、设置屏（服务器地址保存/测试连接 + 宠物 CRUD）完整实现，`tsc --noEmit` 与 `eslint` 全绿
-8. **App 逐屏补功能** —— 拍照查验（expo-camera → `check-photo` 接口 → 结果卡片）→ 蜕皮日志（时间线 + 预测卡片）→ 知识（话题列表 + 详情）→ 卡皮风险（问卷）
+8. ~~App 逐屏补功能~~ —— 已完成（M10）：拍照查验（expo-image-picker → `check-photo` 接口 → 结果卡片，四态徽章 + 概率条 + 护理建议）、蜕皮日志（预测窗口卡片 + 记录时间线 + 添加/标记完成/删除 + 风险评估入口）、知识（六话题列表 + 详情页）、卡皮风险（六题问卷 → 评分分级 + 就医警示）；`tsc --noEmit` 与 `eslint` 全绿，Expo Web 预览逐屏截图验证通过
 9. **ESP-IDF 固件（Phase 3）** —— 与 App 并行。骨架：WiFi → NTP → 拍照 → 上传，已有板子可开始
-9. **人工复核 `data/collected/` 的 417 张新图** —— 剔除误检与不相关图片，按 normal / shedding / 疑似蒙白 手动标注，然后并入 `ml/datasets/gecko-state/` 重训分类器（见 `docs/data-search-2026-11-09.md`）
-10. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。App 上线后靠用户拍照积累，或后续自采
-11. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
+10. **人工复核 `data/collected/` 的 417 张新图** —— 剔除误检与不相关图片，按 normal / shedding / 疑似蒙白 手动标注，然后并入 `ml/datasets/gecko-state/` 重训分类器（见 `docs/data-search-2026-11-09.md`）
+11. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。App 上线后靠用户拍照积累，或后续自采
+12. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
 
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
 
