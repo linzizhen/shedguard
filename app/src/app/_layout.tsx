@@ -44,6 +44,8 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="pet/new" options={{ title: '添加宠物' }} />
           <Stack.Screen name="pet/[id]" options={{ title: '编辑宠物' }} />
+          <Stack.Screen name="topic/[slug]" options={{ title: '知识详情' }} />
+          <Stack.Screen name="risk" options={{ title: '卡皮风险评估' }} />
         </Stack>
       </SafeAreaProvider>
     </QueryClientProvider>

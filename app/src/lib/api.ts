@@ -42,7 +42,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     res = await fetch(`${base}${path}`, {
       ...init,
       headers: {
-        ...(init?.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        // JSON 字符串体才显式设 Content-Type；FormData（multipart）的边界必须由运行时生成
+        ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
         ...init?.headers,
       },
     });

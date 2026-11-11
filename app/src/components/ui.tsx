@@ -54,21 +54,24 @@ export function PrimaryButton({
   onPress,
   loading = false,
   danger = false,
+  disabled = false,
   style,
 }: {
   title: string;
   onPress: () => void;
   loading?: boolean;
   danger?: boolean;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={loading}
+      disabled={loading || disabled}
       style={({ pressed }) => [
         styles.button,
         danger ? styles.buttonDanger : styles.buttonPrimary,
+        disabled && !danger ? styles.buttonDisabled : null,
         pressed && clayPress,
         style,
       ]}
@@ -192,6 +195,9 @@ const styles = StyleSheet.create({
   buttonDanger: {
     backgroundColor: colors.destructive,
     borderColor: '#B91C1C',
+  },
+  buttonDisabled: {
+    opacity: 0.45,
   },
   buttonText: {
     color: '#FFFFFF',

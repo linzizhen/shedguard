@@ -1,6 +1,6 @@
 # ShedGuard App
 
-豹纹守宫蜕皮助手：拍照查验蜕皮状态、记录蜕皮日志、预测下一次蜕皮、饲养知识库。
+豹纹守宫蜕皮助手：拍照查验蜕皮状态、记录蜕皮日志、预测下一次蜕皮、饲养知识库、卡皮风险评估。
 
 技术栈：Expo SDK 58 + React Native 0.88 + TypeScript + Expo Router + React Query。
 
@@ -19,33 +19,49 @@ npx expo start          # 起开发服务
 
 手机 Expo Go 扫终端二维码即可预览。开发服务启动后 `tsc` 的 typed routes 类型（`.expo/types/`）会自动生成。
 
+> 也可以在电脑浏览器预览：`npx expo start --web`，打开 `http://localhost:8081`。
+> 注意浏览器预览从「网页」跨域请求后端，若服务端未开 CORS 会失败；手机 Expo Go 走原生请求，无跨域问题，是推荐方式。
+
 ## 首次配置
 
 1. 打开 App →「设置」Tab
 2. 填服务端地址（电脑局域网 IP，如 `http://192.168.1.100:8000`）→ 保存 → 测试连接
 3. 「宠物管理」→ 添加第一只守宫
 
+## 功能
+
+| Tab | 功能 | 后端接口 |
+|-----|------|----------|
+| 拍照查验 | 选宠物 → 拍照/相册 → 上传判定蜕皮状态（正常/蒙白/蜕皮中/无法判断），显示置信度、概率分布与护理建议 | `POST /api/v1/pets/{id}/check-photo` |
+| 蜕皮日志 | 宠物切换、下次蜕皮预测窗口、蜕皮记录时间线、添加/标记完成/删除、卡皮风险评估入口 | `GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records`、`GET /api/v1/pets/{id}/shed-prediction` |
+| 知识 | 六个话题卡片（速览/环境/喂食/蜕皮基础/卡皮处理/加湿）与详情 | `GET /api/v1/knowledge/topics[/{slug}]` |
+| 设置 | 服务器地址配置与连通性测试、宠物档案管理 | `GET /healthz`、`/api/v1/pets` CRUD |
+| 卡皮风险（日志页进入） | 六题问卷 → 风险评分与分级、就医警示 | `POST /api/v1/risk-assessment` |
+| 知识详情（知识页进入） | 话题分段正文 | `GET /api/v1/knowledge/topics/{slug}` |
+
 ## 目录结构
 
 ```
 app/
 ├── src/
-│   ├── app/                  # Expo Router 文件路由
-│   │   ├── _layout.tsx       # 根布局：QueryClient + Stack
-│   │   ├── (tabs)/           # 底部四 Tab
-│   │   │   ├── _layout.tsx   # Tab 导航器
-│   │   │   ├── index.tsx     # 拍照查验（骨架）
-│   │   │   ├── log.tsx       # 蜕皮日志（骨架）
-│   │   │   ├── knowledge.tsx # 知识（骨架）
-│   │   │   └── settings.tsx  # 设置：服务器地址 + 宠物管理（已实现）
-│   │   └── pet/              # 宠物表单页（Stack）
-│   │       ├── new.tsx       # 添加宠物
-│   │       └── [id].tsx      # 编辑/删除宠物
-│   ├── components/           # 复用组件（ui.tsx 黏土风基础件、PetForm）
-│   ├── hooks/                # React Query hooks（usePets）
-│   └── lib/                  # 基础设施（theme / api / serverUrl / types）
-├── app.json                  # Expo 配置（CNG，勿手建 ios/android）
-└── tsconfig.json             # strict + @/* 路径别名
+│   ├── app/                    # Expo Router 文件路由
+│   │   ├── _layout.tsx         # 根布局：QueryClient + Stack（注册 pet/topic/risk）
+│   │   ├── (tabs)/             # 底部四 Tab
+│   │   │   ├── _layout.tsx     # Tab 导航器
+│   │   │   ├── index.tsx       # 拍照查验
+│   │   │   ├── log.tsx         # 蜕皮日志 + 预测 + 风险评估入口
+│   │   │   ├── knowledge.tsx   # 知识话题列表
+│   │   │   └── settings.tsx    # 服务器地址 + 宠物管理
+│   │   ├── pet/                # 宠物表单页（Stack）
+│   │   │   ├── new.tsx         # 添加宠物
+│   │   │   └── [id].tsx        # 编辑/删除宠物
+│   │   ├── topic/[slug].tsx    # 知识详情
+│   │   └── risk.tsx            # 卡皮风险评估问卷
+│   ├── components/             # ui.tsx 黏土风基础件、PetForm、PetPicker
+│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk）
+│   └── lib/                    # theme / api / serverUrl / types / dates
+├── app.json                    # Expo 配置（CNG，勿手建 ios/android）
+└── tsconfig.json               # strict + @/* 路径别名
 ```
 
 ## 质量门
@@ -63,13 +79,15 @@ npx eslint .       # 代码检查
 |------|------|------|
 | `GET /healthz` | 测试连接 | 已接 |
 | `GET/POST /api/v1/pets`、`PUT/DELETE /api/v1/pets/{id}` | 宠物档案 CRUD | 已接 |
-| `POST /api/v1/pets/{id}/check-photo` | 拍照查验 | 待接 |
-| `GET/POST /api/v1/pets/{id}/shed-records` 等 | 蜕皮日志与预测 | 待接 |
-| `GET /api/v1/knowledge/topics` 等 | 知识库 | 待接 |
-| `POST /api/v1/risk-assessment` | 卡皮风险 | 待接 |
+| `POST /api/v1/pets/{id}/check-photo` | 拍照查验 | 已接 |
+| `GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` | 蜕皮日志 | 已接 |
+| `GET /api/v1/pets/{id}/shed-prediction` | 下次蜕皮预测 | 已接 |
+| `GET /api/v1/knowledge/topics`、`/topics/{slug}` | 知识库 | 已接 |
+| `POST /api/v1/risk-assessment` | 卡皮风险评估 | 已接 |
 
 ## 已知限制
 
 - 无鉴权：服务端与 App 都假定家庭局域网环境
-- 拍照查验、日志、知识、风险四屏目前是占位骨架，逐屏开发中
 - 服务器地址明文存 AsyncStorage
+- 蜕皮状态分类器目前只有「正常 / 蜕皮中」两类，蒙白（opaque）暂无训练样本，会出现但概率低；分类准确性受网图训练数据限制
+- 周期预测需要至少 3 条完整蜕皮记录（有开始与结束日期）才能给出窗口

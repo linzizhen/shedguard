@@ -35,6 +35,10 @@ export default function TabsLayout() {
           fontSize: 12,
           fontWeight: '700',
         },
+        tabBarItemStyle: {
+          minWidth: 0,
+          paddingHorizontal: 0,
+        },
       }}
     >
       <Tabs.Screen
