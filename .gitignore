@@ -17,6 +17,8 @@ venv/
 .pytest_cache/
 .pytest-tmp/
 pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
 .coverage
 .coverage.*
 htmlcov/
@@ -52,6 +54,10 @@ captures/
 *.jpeg
 *.png
 *.mp4
+
+# App 的图标与启动图必须入库（覆盖上面的图片忽略）
+!app/assets/
+!app/assets/**
 
 # ---- 机器学习产物 ----
 ml/datasets/
