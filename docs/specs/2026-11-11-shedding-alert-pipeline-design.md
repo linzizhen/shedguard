@@ -1,6 +1,6 @@
 # 蜕皮检测提醒链路设计规格（固件一期 + 服务端流水线 + 推送）
 
-> 状态：**待用户审查批准**
+> 状态：**已批准，服务端一期实现完成（固件与 App 待跟进）**
 > 日期：2026-11-11
 > 上游决策：用户 m06123（不做蜕皮预测、改做蜕皮检测）、m06128（两者都要、分阶段；设备自动拍）、m06138（定时抓拍上传、服务端判定；推送走 Expo）
 > 关联规格：`docs/specs/2026-11-09-app-and-firmware-design.md`（App 与固件总览，本文在其固件大纲上细化并新增提醒链路）
@@ -91,7 +91,7 @@ ESP32-S3-EYE ──(HTTP POST /api/v1/images, X-Device-Id, X-Captured-At)──�
 - **冷却**：同设备 24 小时内最多推送一次（防止状态抖动刷屏）。
 - 明确**不触发**的情况：状态为 `normal` / `opaque` / `unknown`；低置信度降级为 `unknown` 的帧。
 
-## 7. 数据模型增量（迁移 `0005`）
+## 7. 数据模型增量（迁移 `0006`）
 
 新增两张表：
 
@@ -118,6 +118,7 @@ ESP32-S3-EYE ──(HTTP POST /api/v1/images, X-Device-Id, X-Captured-At)──�
 | confidence | REAL | 可空 |
 | created_at_utc | TEXT | |
 | delivered_at_utc | TEXT | 推送成功时间，可空 |
+| read_at_utc | TEXT | App 标记已读时间，可空（实现时补充） |
 | push_status | TEXT | `pending` / `sent` / `failed` / `skipped` |
 
 唯一索引 `ux_alerts_device_date_kind (device_id, local_date, kind)`。
@@ -192,9 +193,42 @@ ESP32-S3-EYE ──(HTTP POST /api/v1/images, X-Device-Id, X-Captured-At)──�
 
 ## 14. 实施顺序
 
-1. 服务端：迁移 `0005` + `alerts`/`push_devices` 仓储 + `PushService` 抽象。
+1. 服务端：迁移 `0006` + `alerts`/`push_devices` 仓储 + `PushGateway` 抽象。
 2. 服务端：收图自动流水线 + alert 生成规则 + 新 API（含测试）。
 3. 固件：WiFi/NTP/定时抓拍/上传/补传队列（ESP-IDF 骨架）。
 4. App：移除预测 + 提醒列表 + 通知注册 + 设备绑定。
 5. 联调：真机抓拍 → 自动分类 → 推送 → App 展示。
 6. 文档与提交。
+
+## 15. 实现记录（服务端一期，2026-11-11）
+
+**落地文件**（`server/src/shedguard_server/`）：
+- `domain/alerts.py`：`PushDevice`、`Alert`（含 `read_at_utc` 字段）、常量 `SHEDDING_STATE="shedding"`、`ALERT_KIND_SHEDDING="shedding_detected"` 与 `PUSH_PENDING/SENT/FAILED/SKIPPED`。
+- `domain/push.py`：`PushMessage(to,title,body,data)`、`PushStatus(StrEnum)`、`PushOutcome(status,detail)`、`PushGateway` Protocol。
+- `infra/push.py`：`ExpoPushGateway(url, *, timeout, transport=None)` 解析 Expo ticket（`DeviceNotRegistered`→INVALID，其它 error→FAILED，网络异常→FAILED）；`SkippedPushGateway` 返回 SKIPPED。
+- `infra/tables.py`：新增 `PushDeviceRow`、`AlertRow`（唯一索引 `ux_alerts_device_date_kind`）。
+- `infra/repository.py`：新增 `AlertRepository`（`find/get/add/update/list/find_recent_delivered`）与 `PushDeviceRepository`（`find_by_token/get/upsert/list_for/pet_for_device/delete`）。
+- `migrations/versions/0006_alerts_and_push_devices.py`：`revision="0006"`、`down_revision="0005"`。
+- `services/alerts.py`：`AlertService.create_for_transition(...)`（仅 SHEDDING + 同日去重）与 `deliver(alert)`（无目标/冷却→skipped；逐目标推送；`DeviceNotRegistered` 清 token）。
+- `services/processing.py`：`process_image(...)` 后台流水线——算指标 → 判状态 → 找「上一个有状态日」→ 跃迁才建提醒并投递；整体 try/except 只记日志。
+- `api/routes/images.py`：上传成功后，非重复且 `auto_process` 时用 `BackgroundTasks` 触发 `process_image`，依赖从 `request.app.state` 现取（便于测试注入）。
+- `api/routes/devices.py`（`POST/DELETE /api/v1/devices`）、`api/routes/alerts.py`（`GET /api/v1/alerts`、`PATCH /api/v1/alerts/{id}` 标记已读）。
+- `config.py` 新增 `auto_process=True`、`push_enabled=True`、`expo_push_url`、`push_timeout_seconds=5.0`、`alert_cooldown_hours=24`。
+- `app.py`：新增 `app.state.push_gateway`（`push_enabled` 决定 Expo 或占位网关），注册两个新 router。
+
+**与规格的偏差**：
+1. 迁移编号由 `0005` 改为 `0006`（`0005` 已被 pets 表占用）。
+2. `alerts` 表增加 `read_at_utc` 列以支持 `PATCH` 标记已读。
+3. 推送抽象命名 `PushGateway`（规格写 `PushService`），避免与业务层 Service 混淆。
+
+**验收对照**：
+- 上传新图后自动完成指标与状态两步：是（`BackgroundTasks` 触发，幂等）。
+- 状态跃迁生成 alert、同日不重复、24h 冷却：是。
+- 重复上传（同 sha256）不重复处理、不重复建 alert：是。
+- 模型未配置时上传仍成功、日志可诊断：是（`process_image` 记 info 后返回）。
+- 覆盖率：全套 **339 测试 / 覆盖率 95.97%**，ruff + mypy（98 source files）全绿。
+
+**真机冒烟（端口 8129，真实 gecko-det + gecko-state-v2，推送关闭）**：
+- `register device` 201；上传蜕皮图 201 → 后台建 alert（`state=shedding`、`confidence=0.994`、`push_status=skipped` 因无 token/推送关闭）。
+- 重复上传 200 `duplicate=true` → alert 仍为 1 条。
+- 上传正常图 → 该设备 alert 为 0。

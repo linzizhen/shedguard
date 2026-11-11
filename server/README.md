@@ -355,6 +355,17 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 
 规则引擎打分（部分残留/大片残留 +3、眼部残留 +3 且附带就医警告、脚趾肿胀 +3 / 变色 +2、饮水极少 +2、湿度不足或未知 +1、水碗不洁 +1），0–1 `low`、2–4 `moderate`、≥5 `high`；响应含逐项 `factors` 说明与 `vet_warning`（仅眼部残留触发）。
 
+### 蜕皮检测提醒链路
+
+上传图片成功后，服务端会**自动**在后台跑「算指标 → 判蜕皮状态」两步（`SHEDGUARD_AUTO_PROCESS`，默认开），无需再手工调分析接口。若判定为「正在蜕皮」且该设备上一个有状态日不是蜕皮，则生成一条提醒并尝试推送。
+
+- `POST /api/v1/devices`：App 上报推送 token，`{expo_push_token, platform, device_id?, pet_id?}`；同 token 重复上报做 upsert，返回 201 与设备记录。
+- `DELETE /api/v1/devices/{id}`：注销设备，204；不存在 404。
+- `GET /api/v1/alerts?device_id=&pet_id=&limit=`：按设备或宠物拉提醒列表（时间倒序），App 打开时兜底拉取。
+- `PATCH /api/v1/alerts/{id}`：`{"read": true}` 标记已读，返回更新后的提醒。
+
+提醒规则与去重：唯一键 `(device_id, local_date, kind=shedding_detected)`，同设备同一天只建一条；`SHEDGUARD_ALERT_COOLDOWN_HOURS`（默认 24）内的已投递提醒会跳过重复推送。推送状态 `push_status` 取值 `pending / sent / failed / skipped`；`DeviceNotRegistered` 会清理失效 token。推送关闭（`SHEDGUARD_PUSH_ENABLED=false`）时提醒仍入库，仅 `push_status=skipped`。
+
 ### App 接口错误码补充
 
 | 码 | 状态 | 触发场景 |
@@ -401,6 +412,11 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_STATE_MODEL` | 空 | ONNX 状态分类模型路径；为空则识别接口返回 503 |
 | `SHEDGUARD_STATE_MIN_CONFIDENCE` | `0.6` | 低于此置信度降级为 `unknown`（0–1） |
 | `SHEDGUARD_STATE_CROP_PADDING` | `0.08` | 按检测框裁剪时的外扩比例（0–0.3） |
+| `SHEDGUARD_AUTO_PROCESS` | `true` | 上传成功后自动跑指标与状态判定 |
+| `SHEDGUARD_PUSH_ENABLED` | `true` | 是否启用 Expo 推送；关时提醒仍入库但标记 skipped |
+| `SHEDGUARD_EXPO_PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Expo Push 接口地址 |
+| `SHEDGUARD_PUSH_TIMEOUT_SECONDS` | `5.0` | 单次推送请求超时（秒） |
+| `SHEDGUARD_ALERT_COOLDOWN_HOURS` | `24` | 同设备同类提醒的推送冷却（小时，0–168） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
