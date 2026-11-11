@@ -12,7 +12,7 @@ shedguard：给爬宠主人的蜕皮管理工具。**主线是手机 App**（拍
 
 ## 当前阶段
 
-**Phase 1 完成（M1→M7）+ M8 App 配套后端接口 + M9 App 骨架 + M10 App 四屏 + 网络图复核重训 v2 + M11 蜕皮检测提醒链路（服务端一期）完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态；App 提供宠物档案、手动蜕皮日志、拍照查验、知识库、风险评估五组接口（预测接口保留但标 Deprecated）；**上传图片后服务端自动跑「指标 → 状态判定」，判定为「正在蜕皮」且状态发生跃迁时生成 alert 并通过 Expo 推送**，另有 devices 注册/注销与 alerts 查询/已读接口。App（Expo SDK 58 + React Native + TypeScript）四屏完成：拍照查验、蜕皮日志、知识、设置，另有卡皮风险评估问卷页。分类器 v2 测试准确率 0.9286。**下一步：ESP-IDF 固件骨架（Phase 3），再接 App 提醒列表与设备绑定。**
+**Phase 1 完成（M1→M7）+ M8 App 配套后端接口 + M9 App 骨架 + M10 App 四屏 + 网络图复核重训 v2 + M11 蜕皮检测提醒链路（服务端一期）完成——后端能收图、去重、归档、按天查询、收敛成序列、记录蜕皮事件、对单帧算出体表指标、按时序判定异常、对每张图识别蜕皮状态；App 提供宠物档案、手动蜕皮日志、拍照查验、知识库、风险评估五组接口（预测接口保留但标 Deprecated）；**上传图片后服务端自动跑「指标 → 状态判定」，判定为「正在蜕皮」且状态发生跃迁时生成 alert 并通过 Expo 推送**，另有 devices 注册/注销与 alerts 查询/已读接口。App（Expo SDK 58 + React Native + TypeScript）四屏完成：拍照查验、蜕皮日志、知识、设置，另有卡皮风险评估问卷页。分类器 v2 测试准确率 0.9286。**固件骨架（Phase 3 一期）已完成：ESP-IDF v5.4.4 工程，WiFi/NTP/板载 OV2640/白天窗口定时抓拍/multipart 上传/SPIFFS 补传队列，`idf.py build` 编译通过（未上板实测，手边无实物）。下一步：接 App 提醒列表与设备绑定，再上板联调固件。**
 
 公开数据调研已完成（见 `docs/data-survey.md`），结论是全世界都不存在「守宫蜕皮时序」数据集，自采是唯一路径。Roboflow 的 `capstone-habql/gecko_1`（1,163 张，Public Domain）已下载到 `data/raw/gecko1/`。它**能**训「守宫在哪」与「皮是否正在掉」，但**不能**训「蒙白」——标注里的蜕皮样本全是皮已掀起的瞬间，没有一张静止蒙白态；而且分辨率与类别强耦合（短边 < 400px 占 90.9%，蜕皮样本几乎全在高清微距图上），直接做三分类会退化成「白背景 + 高清 = 蜕皮」的捷径学习，所以拆成检测器与状态分类器两个模型分别训。
 
@@ -79,7 +79,10 @@ shedguard/
 │   ├── train_state_classifier.py     # 训 resnet18/mobilenet 并导出 ONNX + labels.json
 │   ├── datasets/gecko-det/           # 检测数据集（1,120 图 / 1,124 框，不入库）
 │   └── datasets/gecko-state/         # 状态数据集（845 正常 / 275 蜕皮，不入库）
-├── firmware/README.md        # ESP32-S3-EYE 固件占位（ESP-IDF + C，Phase 3 待开工）
+├── firmware/                 # ESP32-S3-EYE 固件（ESP-IDF v5.4.4：WiFi/NTP/相机/上传/补传，已编译未上板）
+│   ├── main/                 # main.c + wifi/time_sync/camera/uploader/backlog + app_config.h
+│   ├── partitions.csv        # 8MB 分区（含 storage SPIFFS 补传区）
+│   └── sdkconfig.defaults    # esp32s3 + 8MB Octal PSRAM + 自定义分区表
 ├── server/                   # 后端服务（图片接入、分析、判定、状态识别、App 接口、提醒链路全部完成）
 │   ├── README.md             # 运行、接口、配置与开发说明
 │   ├── pyproject.toml        # 依赖、ruff、mypy、pytest、覆盖率配置
@@ -107,7 +110,7 @@ shedguard/
 6. ~~M8 App 配套后端接口~~ —— 已完成：宠物/日志/预测/拍照查验/知识库/风险评估六组，319 测试全绿，真机冒烟通过（见规格第 10 节实现记录）
 7. ~~M9 App 骨架~~ —— 已完成（`9c3458c`）：Expo SDK 58 + Expo Router + React Query，四 Tab 导航、`apiFetch` 网络层（对齐后端错误契约）、设置屏（服务器地址保存/测试连接 + 宠物 CRUD）完整实现，`tsc --noEmit` 与 `eslint` 全绿
 8. ~~App 逐屏补功能~~ —— 已完成（M10）：拍照查验（expo-image-picker → `check-photo` 接口 → 结果卡片，四态徽章 + 概率条 + 护理建议）、蜕皮日志（预测窗口卡片 + 记录时间线 + 添加/标记完成/删除 + 风险评估入口）、知识（六话题列表 + 详情页）、卡皮风险（六题问卷 → 评分分级 + 就医警示）；`tsc --noEmit` 与 `eslint` 全绿，Expo Web 预览逐屏截图验证通过
-9. **ESP-IDF 固件（Phase 3）** —— 骨架：WiFi → NTP → 白天窗口每 30 分钟抓拍 → `POST /api/v1/images`（带 `X-Device-Id`/`X-Captured-At`）→ 失败入 SPIFFS 队列补传。规格见 `docs/specs/2026-11-11-shedding-alert-pipeline-design.md` §4
+9. ~~ESP-IDF 固件骨架（Phase 3 一期）~~ —— 已完成：`firmware/` 下 ESP-IDF v5.4.4 工程，WiFi STA 自动重连 → SNTP 对时 → 08:00–20:00 每 30 分钟抓拍 VGA JPEG（板载 OV2640）→ multipart `POST /api/v1/images`（`X-Device-Id`/`X-Captured-At`）→ 失败入 SPIFFS 队列（≤7 张）每分钟补传；`idf.py build` 通过（约 1.06 MB，app 分区 75% 空闲）。**未上板实测**，上板后需验相机/窗口/补传。规格见 `docs/specs/2026-11-11-shedding-alert-pipeline-design.md` §4
 10. ~~人工复核 `data/collected/` 的新图并重训~~ —— 已完成（2026-11-11）：343 张落盘图经裁剪+聚类 325 簇，人工只留 88 张干净豹纹守宫图（normal 68 + shedding 20），并入 train 重训出 `gecko-state-v2`，留出测试集 0.9107 → 0.9286。多数网络图是别的物种/皮屑特写/远景，可用量很低；蒙白仍为零
 11. **补蒙白样本** —— 现有公开数据里蒙白图是零，三态跑不起来。App 上线后靠用户拍照积累，或后续自采
 12. ~~知识库核实（Phase 9）~~ —— 第一轮已完成：全部条目换成带来源的值，修正 8 处错误（最要紧的是「需要 UVB」「日常湿度 30–40%」「蜕皮频率无一致来源」）。剩余 5 项需真实个体数据
@@ -133,6 +136,7 @@ shedguard/
 - `pytest -q` 的最终统计行在 PowerShell 管道里会丢，要拿准确数字用 `pytest --junitxml=<file>` 再读 XML。
 - 含中文的源文件不能用 `Get-Content -Raw` / `Set-Content` 管道改写（默认按 GBK 解码，写回即乱码），一律用编辑工具。
 - 机器上设了指向 `127.0.0.1:7897` 的 `HTTP_PROXY`/`HTTPS_PROXY`，但代理常没在跑。所有 `pip` 与 `httpx` 命令前要清空这些变量，`httpx` 还要 `trust_env=False`。
+- **ESP-IDF 固件构建**：本机 ESP-IDF v5.4.4 在 `C:\Espressif\frameworks\esp-idf-v5.4.4`，python 在 `C:\Espressif\python_env\idf5.4_py3.11_env\Scripts`，git 在 `C:\Espressif\tools\idf-git\2.44.0\cmd`。PowerShell 执行策略挡 `export.ps1`，且 `export.bat` 找不到 python（本机无全局 python）——要先把上面 python/git 目录加进 `PATH` 再 `call export.bat`。`.tmp/idf.bat` 是现成的封装：`cmd /c "D:\shedguard\.tmp\idf.bat idf.py build"`。首次 `set-target` 会从组件注册表下载 `esp32-camera`，构建必须在完整权限（danger-full-access）下跑，因为它要写 `C:\Espressif`。
 
 ## 待确认
 
