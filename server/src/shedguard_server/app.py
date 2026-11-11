@@ -14,7 +14,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
 from shedguard_server.api.routes import (
+    alerts,
     analysis,
+    devices,
     events,
     health,
     images,
@@ -26,6 +28,7 @@ from shedguard_server.api.routes import (
 )
 from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector, NullDetector
+from shedguard_server.domain.push import PushGateway
 from shedguard_server.domain.shedding import StateClassifier
 from shedguard_server.errors import (
     ApiError,
@@ -39,6 +42,7 @@ from shedguard_server.infra.classifier import OnnxStateClassifier
 from shedguard_server.infra.db import create_db_engine, create_session_factory
 from shedguard_server.infra.detector import OnnxDetector
 from shedguard_server.infra.migrate import run_migrations
+from shedguard_server.infra.push import ExpoPushGateway, SkippedPushGateway
 from shedguard_server.logging_setup import configure_logging, request_id_var
 
 logger = logging.getLogger("shedguard.http")
@@ -84,6 +88,13 @@ def _build_classifier(
     return classifier, None
 
 
+def _build_push_gateway(settings: Settings) -> PushGateway:
+    """推送关闭时用占位网关，避免测试与离线环境发起真实网络请求。"""
+    if not settings.push_enabled:
+        return SkippedPushGateway()
+    return ExpoPushGateway(settings.expo_push_url, timeout=settings.push_timeout_seconds)
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -108,6 +119,7 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.detector, app.state.detector_error = _build_detector(settings)
     app.state.state_classifier, app.state.classifier_error = _build_classifier(settings)
+    app.state.push_gateway = _build_push_gateway(settings)
 
     async def request_context(
         request: Request,
@@ -154,4 +166,6 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(pets.router)
     app.include_router(knowledge.router)
     app.include_router(risk.router)
+    app.include_router(devices.router)
+    app.include_router(alerts.router)
     return app

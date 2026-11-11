@@ -12,9 +12,11 @@ from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector
 from shedguard_server.domain.shedding import StateClassifier
 from shedguard_server.infra.repository import (
+    AlertRepository,
     FrameMetricRepository,
     ImageRepository,
     PetRepository,
+    PushDeviceRepository,
     SheddingStateRepository,
     ShedRecordRepository,
 )
@@ -63,6 +65,18 @@ def get_shed_record_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> ShedRecordRepository:
     return ShedRecordRepository(session)
+
+
+def get_alert_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> AlertRepository:
+    return AlertRepository(session)
+
+
+def get_push_device_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PushDeviceRepository:
+    return PushDeviceRepository(session)
 
 
 def get_state_classifier(request: Request) -> StateClassifier | None:

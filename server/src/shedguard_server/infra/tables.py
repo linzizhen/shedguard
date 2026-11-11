@@ -152,3 +152,53 @@ class SheddingStateRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"SheddingStateRow(image_id={self.image_id!r}, state={self.state!r})"
+
+
+class PushDeviceRow(Base):
+    """App 上报的推送目标；token 唯一，同一台手机重复上报时覆盖。"""
+
+    __tablename__ = "push_devices"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    pet_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("pets.id"), nullable=True, index=True
+    )
+    expo_push_token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"PushDeviceRow(id={self.id!r}, platform={self.platform!r})"
+
+
+class AlertRow(Base):
+    """一条蜕皮提醒。同一设备同一天同一类型只保留一条。"""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    pet_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("pets.id"), nullable=True, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    local_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    image_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("images.id"), nullable=True
+    )
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    delivered_at_utc: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    read_at_utc: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    push_status: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("device_id", "local_date", "kind", name="ux_alerts_device_date_kind"),
+        Index("ix_alerts_device_date", "device_id", "local_date"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"AlertRow(id={self.id!r}, kind={self.kind!r}, date={self.local_date!r})"

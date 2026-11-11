@@ -5,24 +5,30 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from shedguard_server.api.dependencies import (
-    get_image_repository as get_repository,
-)
-from shedguard_server.api.dependencies import (
+    get_detector,
     get_settings,
+    get_state_classifier,
     get_storage,
 )
+from shedguard_server.api.dependencies import (
+    get_image_repository as get_repository,
+)
 from shedguard_server.config import Settings
+from shedguard_server.domain.detection import Detector
 from shedguard_server.domain.models import ImageRecord
+from shedguard_server.domain.push import PushGateway
+from shedguard_server.domain.shedding import StateClassifier
 from shedguard_server.errors import InvalidRequestError, NotFoundError, PayloadTooLargeError
 from shedguard_server.infra.repository import ImageRepository
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.ingest import IngestService
+from shedguard_server.services.processing import process_image
 
 router = APIRouter(prefix="/api/v1/images", tags=["images"])
 
@@ -82,8 +88,12 @@ async def _read_payload(request: Request, limit: int) -> bytes:
 @router.post("", status_code=201)
 async def upload_image(
     request: Request,
+    background_tasks: BackgroundTasks,
     service: Annotated[IngestService, Depends(get_ingest_service)],
     settings: Annotated[Settings, Depends(get_settings)],
+    detector: Annotated[Detector, Depends(get_detector)],
+    classifier: Annotated[StateClassifier | None, Depends(get_state_classifier)],
+    storage: Annotated[LocalStorage, Depends(get_storage)],
 ) -> JSONResponse:
     payload = await _read_payload(request, settings.max_upload_bytes)
     outcome = await run_in_threadpool(
@@ -92,6 +102,18 @@ async def upload_image(
         device_id_raw=request.headers.get("x-device-id"),
         captured_at_raw=request.headers.get("x-captured-at"),
     )
+    if not outcome.duplicate and settings.auto_process:
+        gateway: PushGateway = request.app.state.push_gateway
+        background_tasks.add_task(
+            process_image,
+            session_factory=request.app.state.session_factory,
+            settings=settings,
+            detector=detector,
+            classifier=classifier,
+            storage=storage,
+            gateway=gateway,
+            image_id=outcome.record.id,
+        )
     body = {**_serialize(outcome.record), "duplicate": outcome.duplicate}
     return JSONResponse(body, status_code=200 if outcome.duplicate else 201)
 

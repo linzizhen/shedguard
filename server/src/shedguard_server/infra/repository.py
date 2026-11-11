@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
+from shedguard_server.domain.alerts import Alert, PushDevice
 from shedguard_server.domain.models import (
     FrameMetric,
     ImageRecord,
@@ -17,9 +18,11 @@ from shedguard_server.domain.models import (
 )
 from shedguard_server.domain.pets import Pet, ShedRecord
 from shedguard_server.infra.tables import (
+    AlertRow,
     FrameMetricRow,
     ImageRow,
     PetRow,
+    PushDeviceRow,
     SheddingStateRow,
     ShedEventRow,
     ShedRecordRow,
@@ -498,3 +501,202 @@ class ShedRecordRepository:
         for row in rows:
             self._session.delete(row)
         self._session.commit()
+
+
+def _to_alert(row: AlertRow) -> Alert:
+    return Alert(
+        id=row.id,
+        device_id=row.device_id,
+        pet_id=row.pet_id,
+        kind=row.kind,
+        local_date=date.fromisoformat(row.local_date),
+        state=row.state,
+        image_id=row.image_id,
+        confidence=row.confidence,
+        created_at_utc=_parse_utc(row.created_at_utc),
+        delivered_at_utc=_parse_utc(row.delivered_at_utc) if row.delivered_at_utc else None,
+        push_status=row.push_status,
+        read_at_utc=_parse_utc(row.read_at_utc) if row.read_at_utc else None,
+    )
+
+
+def _to_alert_row(alert: Alert) -> AlertRow:
+    return AlertRow(
+        id=alert.id,
+        device_id=alert.device_id,
+        pet_id=alert.pet_id,
+        kind=alert.kind,
+        local_date=alert.local_date.isoformat(),
+        state=alert.state,
+        image_id=alert.image_id,
+        confidence=alert.confidence,
+        created_at_utc=alert.created_at_utc.isoformat(),
+        delivered_at_utc=(
+            alert.delivered_at_utc.isoformat() if alert.delivered_at_utc else None
+        ),
+        read_at_utc=alert.read_at_utc.isoformat() if alert.read_at_utc else None,
+        push_status=alert.push_status,
+    )
+
+
+class AlertRepository:
+    """alerts 表的读写；同一设备同一天同一类型只保留一条。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, device_id: str, local_date: date, kind: str) -> Alert | None:
+        row = self._session.scalar(
+            select(AlertRow).where(
+                AlertRow.device_id == device_id,
+                AlertRow.local_date == local_date.isoformat(),
+                AlertRow.kind == kind,
+            )
+        )
+        return _to_alert(row) if row is not None else None
+
+    def get(self, alert_id: str) -> Alert | None:
+        row = self._session.get(AlertRow, alert_id)
+        return _to_alert(row) if row is not None else None
+
+    def add(self, alert: Alert) -> None:
+        self._session.add(_to_alert_row(alert))
+        self._session.commit()
+
+    def update(self, alert: Alert) -> None:
+        self._session.merge(_to_alert_row(alert))
+        self._session.commit()
+
+    def list(
+        self,
+        *,
+        device_id: str | None = None,
+        pet_id: str | None = None,
+        limit: int = 50,
+    ) -> list[Alert]:
+        conditions: list[ColumnElement[bool]] = []
+        if device_id is not None:
+            conditions.append(AlertRow.device_id == device_id)
+        if pet_id is not None:
+            conditions.append(AlertRow.pet_id == pet_id)
+        rows = self._session.scalars(
+            select(AlertRow)
+            .where(*conditions)
+            .order_by(AlertRow.created_at_utc.desc(), AlertRow.id)
+            .limit(limit)
+        ).all()
+        return [_to_alert(row) for row in rows]
+
+    def find_recent_delivered(
+        self, device_id: str, kind: str, *, since: datetime
+    ) -> Alert | None:
+        """取该设备在 `since` 之后已成功投递的同类提醒，用于冷却判断。"""
+        row = self._session.scalar(
+            select(AlertRow)
+            .where(
+                AlertRow.device_id == device_id,
+                AlertRow.kind == kind,
+                AlertRow.push_status == "sent",
+                AlertRow.delivered_at_utc.is_not(None),
+                AlertRow.delivered_at_utc >= since.isoformat(),
+            )
+            .order_by(AlertRow.delivered_at_utc.desc())
+        )
+        return _to_alert(row) if row is not None else None
+
+
+def _to_push_device(row: PushDeviceRow) -> PushDevice:
+    return PushDevice(
+        id=row.id,
+        device_id=row.device_id,
+        pet_id=row.pet_id,
+        expo_push_token=row.expo_push_token,
+        platform=row.platform,
+        created_at_utc=_parse_utc(row.created_at_utc),
+        updated_at_utc=_parse_utc(row.updated_at_utc),
+    )
+
+
+def _to_push_device_row(device: PushDevice) -> PushDeviceRow:
+    return PushDeviceRow(
+        id=device.id,
+        device_id=device.device_id,
+        pet_id=device.pet_id,
+        expo_push_token=device.expo_push_token,
+        platform=device.platform,
+        created_at_utc=device.created_at_utc.isoformat(),
+        updated_at_utc=device.updated_at_utc.isoformat(),
+    )
+
+
+class PushDeviceRepository:
+    """push_devices 表的读写；token 唯一。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find_by_token(self, token: str) -> PushDevice | None:
+        row = self._session.scalar(
+            select(PushDeviceRow).where(PushDeviceRow.expo_push_token == token)
+        )
+        return _to_push_device(row) if row is not None else None
+
+    def get(self, device_pk: str) -> PushDevice | None:
+        row = self._session.get(PushDeviceRow, device_pk)
+        return _to_push_device(row) if row is not None else None
+
+    def upsert(self, device: PushDevice) -> PushDevice:
+        """按 token 覆盖；已存在时保留原主键只更新绑定关系。"""
+        row = self._session.scalar(
+            select(PushDeviceRow).where(
+                PushDeviceRow.expo_push_token == device.expo_push_token
+            )
+        )
+        if row is None:
+            self._session.add(_to_push_device_row(device))
+            self._session.commit()
+            return device
+
+        row.device_id = device.device_id
+        row.pet_id = device.pet_id
+        row.platform = device.platform
+        row.updated_at_utc = device.updated_at_utc.isoformat()
+        self._session.commit()
+        self._session.refresh(row)
+        return _to_push_device(row)
+
+    def list_for(
+        self, *, device_id: str | None, pet_id: str | None
+    ) -> list[PushDevice]:
+        """按设备号或宠物号匹配推送目标（任一命中即可）。"""
+        conditions: list[ColumnElement[bool]] = []
+        if device_id is not None:
+            conditions.append(PushDeviceRow.device_id == device_id)
+        if pet_id is not None:
+            conditions.append(PushDeviceRow.pet_id == pet_id)
+        if not conditions:
+            return []
+        rows = self._session.scalars(
+            select(PushDeviceRow)
+            .where(or_(*conditions))
+            .order_by(PushDeviceRow.created_at_utc)
+        ).all()
+        return [_to_push_device(row) for row in rows]
+
+    def pet_for_device(self, device_id: str) -> str | None:
+        """取绑定到该设备号的第一个宠物；用于给提醒补 `pet_id`。"""
+        row = self._session.scalar(
+            select(PushDeviceRow).where(
+                PushDeviceRow.device_id == device_id,
+                PushDeviceRow.pet_id.is_not(None),
+            )
+        )
+        return row.pet_id if row is not None else None
+
+    def delete(self, device_pk: str) -> bool:
+        row = self._session.get(PushDeviceRow, device_pk)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True
