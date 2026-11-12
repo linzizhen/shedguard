@@ -24,10 +24,10 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 后端服务（FastAPI + SQLite） | 完成 | 收图去重、体表指标、序列与事件、宠物档案、日志、知识库、风险问卷、提醒流水线；340 测试 / 覆盖率 96% |
+| 后端服务（FastAPI + SQLite） | 完成 | 收图去重、体表指标、序列与事件、宠物档案、日志、知识库、风险问卷、提醒流水线、匿名账号鉴权、设备健康兜底；370 测试 / 覆盖率 95.99% |
 | 守宫检测模型 | 完成 | YOLO 导出 ONNX，测试集 mAP50 0.902 |
 | 蜕皮状态分类器 | 完成（两态） | 正常 / 蜕皮中，测试准确率 0.9286 |
-| React Native App | 完成 | 拍照查验、蜕皮日志、知识、设置四屏 + 蜕皮提醒详情与推送注册 |
+| React Native App | 完成 | 三步向导 + 三 Tab（拍照 / 蜕皮记录 / 我的）+ 提醒详情与推送注册；新手向文案，技术项折叠进「高级设置」 |
 | ESP32-S3-EYE 固件 | 代码完成，未上板 | WiFi、NTP、定时抓拍、multipart 上传、断网补传队列，`idf.py build` 通过 |
 | 真实饲养箱数据 | 缺口 | 尚无自采照片；蒙白（opaque）样本为零 |
 
@@ -64,6 +64,8 @@ npx expo install
 npx expo start          # 手机装 Expo Go 扫码预览
 ```
 
+没有 Google 服务的安卓机装不了 Expo Go，可用网页版预览：`npx expo start --web`，服务端需设 `SHEDGUARD_CORS_ORIGINS=*`。详细步骤见 [`app/README.md`](app/README.md)。
+
 ### 固件
 
 见 [`firmware/README.md`](firmware/README.md)，需要 ESP-IDF v5.4 环境。
@@ -81,10 +83,10 @@ npx expo start          # 手机装 Expo Go 扫码预览
 
 ## 已知限制
 
-- 无鉴权、无 HTTPS：假定家庭局域网环境
+- 仍无 HTTPS：假定家庭局域网环境；匿名账号令牌在局域网内明文传输
 - 分类器只有「正常 / 蜕皮中」两类，蒙白暂无训练样本；准确性受网图训练数据限制
 - 固件尚未在真实硬件上运行验证
-- 推送依赖 Expo Push 服务与外网
+- 推送依赖 Expo Push 服务与外网，且需要 EAS development build（Expo Go 收不到远程推送）
 
 ## 免责声明
 
