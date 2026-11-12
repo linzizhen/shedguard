@@ -72,6 +72,7 @@ export type PushSetupState =
   | { kind: 'idle' }
   | { kind: 'working' }
   | { kind: 'ok'; token: string }
+  | { kind: 'bound'; message: string }
   | { kind: 'denied'; message: string }
   | { kind: 'unsupported'; message: string }
   | { kind: 'error'; message: string };
@@ -142,6 +143,30 @@ export function useEnablePush() {
       setState({ kind: 'working' });
       const result = await obtainPushToken();
       if (result.kind !== 'ok') {
+        // 拿不到推送 token（Expo Go / 未打包 / 无权限）时仍然绑定设备与宠物，
+        // 这样提醒能进 App 列表，只是不会弹系统通知。
+        if (result.kind === 'unsupported' || result.kind === 'denied') {
+          try {
+            await register.mutateAsync({
+              expo_push_token: '',
+              platform:
+                Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
+              device_id: deviceId.trim() || undefined,
+              pet_id: petId ?? undefined,
+            });
+            setState({
+              kind: 'bound',
+              message: `设备已绑定，提醒会出现在日志列表（未开启系统通知：${result.message}）`,
+            });
+            return;
+          } catch (error) {
+            setState({
+              kind: 'error',
+              message: error instanceof Error ? error.message : String(error),
+            });
+            return;
+          }
+        }
         setState(result);
         return;
       }
