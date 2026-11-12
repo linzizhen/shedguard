@@ -8,7 +8,7 @@
 
 - Node.js ≥ 20
 - 电脑上跑着 ShedGuard 服务端（`server/`），App 通过局域网访问它的 HTTP 接口
-- 手机装 [Expo Go](https://expo.dev/go)（开发期预览用，无原生模块时够用）
+- 手机装 [Expo Go](https://expo.dev/go)（开发期预览用，无原生模块时够用）；无 Google 服务的国产安卓机装不了，改用网页版预览
 
 ## 快速开始
 
@@ -36,22 +36,20 @@ eas build -p android --profile development
 
 ## 首次配置
 
-1. 打开 App →「设置」Tab
-2. 填服务端地址（电脑局域网 IP，如 `http://192.168.1.100:8000`）→ 保存 → 测试连接
-3. 「宠物管理」→ 添加第一只守宫
-4. 「摄像头与提醒」→ 填设备编号（与固件 `APP_DEVICE_ID` 一致）→ 绑定宠物 → 保存并启用通知（iOS/Android 会申请通知权限；Web 浏览器不支持推送）
+App 第一次打开会走三步向导（欢迎 → 给守宫起名字 → 准备拍照），每一步都能跳过。向导里如果还没有服务器地址，会先让你填一次「电脑上那个程序的地址」。
+
+之后所有技术项都收在「我的 → 高级设置」里，普通使用不需要碰。
 
 ## 功能
 
 | Tab | 功能 | 后端接口 |
 |-----|------|----------|
-| 拍照查验 | 选宠物 → 拍照/相册 → 上传判定蜕皮状态（正常/蒙白/蜕皮中/无法判断），显示置信度、概率分布与护理建议 | `POST /api/v1/pets/{id}/check-photo` |
-| 蜕皮日志 | 宠物切换、顶部提醒横幅（蜕皮 / 设备离线 / 看不到守宫三类，点开看详情）、蜕皮记录时间线、添加/标记完成/删除、卡皮风险评估入口 | `GET /api/v1/alerts`、`GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` |
-| 知识 | 六个话题卡片（速览/环境/喂食/蜕皮基础/卡皮处理/加湿）与详情 | `GET /api/v1/knowledge/topics[/{slug}]` |
-| 设置 | 服务器地址配置与连通性测试、宠物档案管理、设备编号绑定与推送通知启用 | `GET /healthz`、`/api/v1/pets` CRUD、`POST/DELETE /api/v1/devices` |
-| 提醒详情（日志页进入） | 显示抓拍原图、日期、判定与置信度，打开即标记已读 | `GET /api/v1/images/{id}`、`PATCH /api/v1/alerts/{id}` |
-| 卡皮风险（日志页进入） | 六题问卷 → 风险评分与分级、就医警示 | `POST /api/v1/risk-assessment` |
-| 知识详情（知识页进入） | 话题分段正文 | `GET /api/v1/knowledge/topics/{slug}` |
+| 拍照（首页） | 一个圆形大按钮「拍张照」+ 从相册选；结果只显示一句人话结论与建议，置信度与概率收进折叠的「看看更多细节」 | `POST /api/v1/pets/{id}/check-photo` |
+| 蜕皮记录 | 顶部提醒横幅（蜕皮 / 设备离线 / 看不到守宫三类，点开看详情）、蜕皮时间线、记一次蜕皮 / 标记蜕完 / 删除、卡皮风险评估入口 | `GET /api/v1/alerts`、`GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` |
+| 我的 | 我的守宫（列表 + 添加）、蜕皮提醒（摄像头编号 + 保存并开启通知）、蜕皮知识入口、卡皮检查入口、折叠的「高级设置」（服务器地址 + 重置身份） | `GET /healthz`、`/api/v1/pets` CRUD、`POST/DELETE /api/v1/devices` |
+| 蜕皮知识（从「我的」进入） | 六个话题卡片与详情 | `GET /api/v1/knowledge/topics[/{slug}]` |
+| 提醒详情（记录页进入） | 显示抓拍原图、日期、判定与置信度，打开即标记已读 | `GET /api/v1/images/{id}`、`PATCH /api/v1/alerts/{id}` |
+| 卡皮风险（记录页进入） | 六题问卷 → 风险评分与分级、就医警示 | `POST /api/v1/risk-assessment` |
 
 ## 目录结构
 
@@ -59,13 +57,14 @@ eas build -p android --profile development
 app/
 ├── src/
 │   ├── app/                    # Expo Router 文件路由
-│   │   ├── _layout.tsx         # 根布局：QueryClient + Stack（注册 pet/topic/risk/alert）+ 通知桥
-│   │   ├── (tabs)/             # 底部四 Tab
-│   │   │   ├── _layout.tsx     # Tab 导航器
+│   │   ├── _layout.tsx         # 根布局：QueryClient + Stack + 通知桥 + 首启向导跳转
+│   │   ├── welcome.tsx         # 三步首次向导
+│   │   ├── knowledge.tsx       # 蜕皮知识列表（从「我的」进入）
+│   │   ├── (tabs)/             # 底部三 Tab
+│   │   │   ├── _layout.tsx     # Tab 导航器（拍照 / 蜕皮记录 / 我的）
 │   │   │   ├── index.tsx       # 拍照查验
-│   │   │   ├── log.tsx         # 蜕皮日志 + 提醒横幅 + 风险评估入口
-│   │   │   ├── knowledge.tsx   # 知识话题列表
-│   │   │   └── settings.tsx    # 服务器地址 + 宠物管理 + 设备与通知
+│   │   │   ├── log.tsx         # 蜕皮记录 + 提醒横幅 + 风险评估入口
+│   │   │   └── settings.tsx    # 我的：守宫、提醒、知识入口、高级设置
 │   │   ├── pet/                # 宠物表单页（Stack）
 │   │   │   ├── new.tsx         # 添加宠物
 │   │   │   └── [id].tsx        # 编辑/删除宠物
@@ -74,7 +73,7 @@ app/
 │   │   └── risk.tsx            # 卡皮风险评估问卷
 │   ├── components/             # ui.tsx 黏土风基础件、PetForm、PetPicker
 │   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts）
-│   └── lib/                    # theme / api / serverUrl / deviceId / types / dates
+│   └── lib/                    # theme / api / auth / serverUrl / deviceId / onboarding / resultCopy / types / dates
 ├── app.json                    # Expo 配置（CNG，勿手建 ios/android）
 └── tsconfig.json               # strict + @/* 路径别名
 ```
