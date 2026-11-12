@@ -660,7 +660,11 @@ class AlertRepository:
         if device_id is not None:
             conditions.append(AlertRow.device_id == device_id)
         if pet_id is not None:
-            conditions.append(AlertRow.pet_id == pet_id)
+            # 设备级提醒（pet_id 为空）不属于某只宠物，按宠物筛选时也要带上，
+            # 否则用户绑定设备前产生的提醒会在 App 里看不到。
+            conditions.append(
+                or_(AlertRow.pet_id == pet_id, AlertRow.pet_id.is_(None))
+            )
         if owner_id is not None:
             owned = select(PetRow.id).where(PetRow.owner_id == owner_id)
             # 未绑定宠物的设备级提醒（pet_id 为空）对所有人可见。

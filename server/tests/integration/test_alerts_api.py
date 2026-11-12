@@ -127,3 +127,22 @@ class TestUploadPipeline:
         assert response.status_code == 201
         alerts = client.get("/api/v1/alerts", params={"device_id": "calm-device"}).json()
         assert alerts["items"] == []
+
+    def test_device_level_alert_visible_when_filtering_by_pet(
+        self, client: TestClient
+    ) -> None:
+        """设备还没绑定宠物时产生的提醒（pet_id 为空），按宠物筛选也要能看到。"""
+        client.app.state.state_classifier = _FakeClassifier(  # type: ignore[attr-defined]
+            ShedState.SHEDDING, 0.95
+        )
+        pet = client.post("/api/v1/pets", json={"name": "小橙"}).json()
+
+        response = _upload(client, make_jpeg(brightness=210), "loose-device")
+        assert response.status_code == 201
+
+        alerts = client.get(
+            "/api/v1/alerts",
+            params={"device_id": "loose-device", "pet_id": pet["id"]},
+        ).json()
+        assert len(alerts["items"]) == 1
+        assert alerts["items"][0]["pet_id"] is None
