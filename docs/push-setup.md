@@ -59,16 +59,36 @@ iPhone 用户：`eas build -p ios --profile development`，需要 Apple 开发�
 
 ## 5. 验证真的能收到
 
-先确认服务端能把提醒发出去（绕过相机，直接造一条蜕皮提醒）：
+分两步：先确认「服务端能建提醒」，再确认「手机能收到通知」。
+
+### 5.1 服务端链路自测（不需要开发板、不需要手机）
 
 ```powershell
 cd server
 $env:PYTHONPATH="server\src"
-.\.venv\Scripts\python.exe -m shedguard_server      # 另开一个窗口常驻
+.\.venv\Scripts\python.exe -m shedguard_server   # 常驻窗口
 ```
 
+另开一个窗口，用内置的设备模拟器上传一张蜕皮照片，它会把「建账号 → 建宠物 → 绑设备 → 上传 → 查提醒」整条跑一遍：
+
 ```powershell
-# 另开窗口：用你的 token 直接打 Expo 推送接口
+.\.venv\Scripts\python.exe server\scripts\device_sim.py --pet-name 测试守宫
+```
+
+看到这行就说明判定与提醒都通了：
+
+```text
+[OK] shedding_detected  2026-11-12  state=shedding conf=0.9997  push=skipped
+```
+
+> `push=skipped` 是因为本地默认 `SHEDGUARD_PUSH_ENABLED=false`，只建提醒不发推送。
+> 同一设备同一天只提醒一次（自动去重），重复跑会换一个 `sim-HHMMSS` 设备号。
+
+### 5.2 手机收推送
+
+先单独验证 token 与 Expo 通道：
+
+```powershell
 $token = "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"   # App 设置页显示的那个
 $body = @(@{ to = $token; title = "守宫正在蜕皮"; body = "这是一条测试推送"; data = @{ kind = "shedding_detected" } }) | ConvertTo-Json -Depth 5
 Invoke-RestMethod -Uri "https://exp.host/--/api/v2/push/send" -Method Post -ContentType "application/json" -Body $body
@@ -76,9 +96,13 @@ Invoke-RestMethod -Uri "https://exp.host/--/api/v2/push/send" -Method Post -Cont
 
 手机应在几秒内收到通知。收不到就按第 6 节排查。
 
-真实链路验证：让固件/脚本上传一张蜕皮照片（`POST /api/v1/images`，头带 `X-Device-Id`），
-服务端会自动分析 → 状态为 shedding 且前一日非 shedding → 建提醒 → 推送。
-`SHEDGUARD_PUSH_ENABLED=false` 时只建提醒不推送（本地联调默认值请确认是 `true`）。
+真实链路验证：把服务端 `SHEDGUARD_PUSH_ENABLED` 设为 `true`，在 App 里绑定好设备与宠物（这样提醒会带上 pet_id，App 才看得到），再跑一次 5.1 的模拟器（**不要**加 `--pet-name`，用 App 里那个设备号）：
+
+```powershell
+.\.venv\Scripts\python.exe server\scripts\device_sim.py --device-id gecko-eye-01 --image <一张今天的蜕皮照片>
+```
+
+此时手机应收到真实推送，App 日志页同时出现提醒横幅。
 
 ## 6. 常见问题
 
