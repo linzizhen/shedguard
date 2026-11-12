@@ -102,6 +102,7 @@ export function SecondaryButton({
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
+        styles.button,
         styles.buttonSecondary,
         disabled && styles.buttonDisabled,
         pressed && clayPress,

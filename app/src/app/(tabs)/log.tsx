@@ -1,203 +1,104 @@
 /**
- * 蜕皮日志 Tab：宠物切换 + 蜕皮提醒 + 蜕皮记录时间线 + 添加/完成/删除。
- * 后端：GET/POST /api/v1/pets/{id}/shed-records、GET /api/v1/alerts。
+ * 蜕皮记录：最上面一条提醒，下面是"什么时候开始、什么时候蜕完"的时间线。
+ * 文案全部口语化，不出现内部状态名。
  */
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useState, type ComponentProps } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { PetPicker } from '@/components/PetPicker';
-import { Card, EmptyState, PageHeader, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import {
+  Card,
+  EmptyState,
+  Field,
+  PageHeader,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  SectionTitle,
+} from '@/components/ui';
 import { useAlerts } from '@/hooks/useAlerts';
+import { usePets } from '@/hooks/usePets';
 import {
   useCreateShedRecord,
   useDeleteShedRecord,
   useShedRecords,
   useUpdateShedRecord,
 } from '@/hooks/useShed';
-import { usePets } from '@/hooks/usePets';
 import { useDeviceId } from '@/lib/deviceId';
-import { imageUrl } from '@/lib/auth';
+import { todayIso } from '@/lib/dates';
+import { alertTitle, recordLabel } from '@/lib/resultCopy';
 import { useServerUrl } from '@/lib/serverUrl';
-import { todayIso, formatDateCn } from '@/lib/dates';
 import { colors, radius } from '@/lib/theme';
-import type { AlertItem, Pet, ShedRecord } from '@/lib/types';
+import type { ShedRecord } from '@/lib/types';
 
-const ALERT_STATE_LABEL: Record<string, string> = {
-  shedding: '检测到正在蜕皮',
-  opaque: '进入蒙白期',
-  normal: '状态恢复正常',
-  unknown: '状态待确认',
-};
-
-const ALERT_KIND_LABEL: Record<string, string> = {
-  shedding_detected: '蜕皮提醒',
-  device_silent: '设备可能离线',
-  no_detection: '看不到守宫',
-};
-
-function alertLabel(alert: AlertItem): string {
-  if (alert.kind !== 'shedding_detected') {
-    return ALERT_KIND_LABEL[alert.kind] ?? '设备提醒';
-  }
-  return ALERT_STATE_LABEL[alert.state] ?? '蜕皮提醒';
-}
-
-function AlertBanner({ alert }: { alert: AlertItem }) {
-  const unread = !alert.read_at_utc;
-  const label = alertLabel(alert);
-  const hasPhoto = Boolean(alert.image_id);
-  return (
-    <Pressable
-      onPress={() =>
-        router.push({
-          pathname: '/alert/[id]',
-          params: {
-            id: alert.id,
-            kind: alert.kind,
-            image_id: alert.image_id ?? '',
-            state: alert.state,
-            local_date: alert.local_date,
-            confidence: alert.confidence != null ? String(alert.confidence) : '',
-          },
-        })
-      }
-      style={({ pressed }) => [styles.alertCard, pressed && styles.alertPressed]}
-    >
-      {hasPhoto ? (
-        <Image source={{ uri: imageUrl(alert.image_id as string) }} style={styles.alertThumb} />
-      ) : (
-        <View style={[styles.alertThumb, styles.alertThumbIcon]}>
-          <Ionicons name="alert-circle-outline" size={26} color={colors.primary} />
-        </View>
-      )}
-      <View style={styles.alertBody}>
-        <View style={styles.alertTitleRow}>
-          <Text style={styles.alertTitle}>{label}</Text>
-          {unread ? <View style={styles.unreadDot} /> : null}
-        </View>
-        <Text style={styles.alertSub}>
-          {formatDateCn(alert.local_date)}
-          {hasPhoto && alert.confidence != null
-            ? ` · 置信度 ${Math.round(alert.confidence * 100)}%`
-            : ''}
-        </Text>
-        <Text style={styles.alertHint}>{hasPhoto ? '点开查看原图 ›' : '点开查看详情 ›'}</Text>
-      </View>
-    </Pressable>
-  );
-}
-
-function RecordRow({
-  record,
-  onComplete,
-  onDelete,
-}: {
-  record: ShedRecord;
-  onComplete: () => void;
-  onDelete: () => void;
-}) {
-  const ongoing = record.completed_on === null;
-  return (
-    <View style={styles.recordRow}>
-      <View style={styles.recordDot} />
-      <View style={styles.recordBody}>
-        <View style={styles.recordHeader}>
-          <Text style={styles.recordRange}>
-            {formatDateCn(record.started_on)}
-            {ongoing ? ' 开始' : ` ~ ${formatDateCn(record.completed_on as string)}`}
-          </Text>
-          {ongoing ? (
-            <View style={styles.ongoingBadge}>
-              <Text style={styles.ongoingText}>进行中</Text>
-            </View>
-          ) : null}
-        </View>
-        {record.notes ? <Text style={styles.recordNotes}>{record.notes}</Text> : null}
-        <View style={styles.recordActions}>
-          {ongoing ? (
-            <Pressable onPress={onComplete} hitSlop={6}>
-              <Text style={styles.actionComplete}>标记完成</Text>
-            </Pressable>
-          ) : null}
-          <Pressable onPress={onDelete} hitSlop={6}>
-            <Text style={styles.actionDelete}>删除</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
+function shortDate(iso: string): string {
+  const [, month, day] = iso.split('-');
+  return `${Number(month)}月${Number(day)}日`;
 }
 
 export default function LogScreen() {
   const serverUrl = useServerUrl();
   const petsQuery = usePets();
-  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [startedOn, setStartedOn] = useState(todayIso());
-  const [completedOn, setCompletedOn] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const pets: Pet[] = petsQuery.data?.items ?? [];
-  const activePetId =
-    selectedPetId && pets.some((p) => p.id === selectedPetId) ? selectedPetId : (pets[0]?.id ?? null);
-  const activePet = pets.find((p) => p.id === activePetId) ?? null;
-
   const deviceId = useDeviceId();
-  const recordsQuery = useShedRecords(activePetId);
-  const alertsQuery = useAlerts({ petId: activePetId, deviceId: deviceId || null });
-  const createMutation = useCreateShedRecord(activePetId ?? '');
-  const updateMutation = useUpdateShedRecord(activePetId ?? '');
-  const deleteMutation = useDeleteShedRecord(activePetId ?? '');
+  const [formOpen, setFormOpen] = useState(false);
+  const [startedOn, setStartedOn] = useState(todayIso());
+  const [completed, setCompleted] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [errorText, setErrorText] = useState<string | null>(null);
 
-  function resetForm() {
-    setStartedOn(todayIso());
-    setCompletedOn('');
-    setNotes('');
-    setShowForm(false);
-  }
+  const pets = petsQuery.data?.items ?? [];
+  const pet = pets[0] ?? null;
+  const petId = pet?.id ?? '';
+  const recordsQuery = useShedRecords(petId === '' ? null : petId);
+  const alertsQuery = useAlerts({ petId: petId === '' ? null : petId, deviceId: deviceId || null });
+  const createRecord = useCreateShedRecord(petId);
+  const updateRecord = useUpdateShedRecord(petId);
+  const deleteRecord = useDeleteShedRecord(petId);
 
-  function handleSubmit() {
-    if (!activePetId) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startedOn)) {
-      Alert.alert('日期格式不对', '开始日期请用 YYYY-MM-DD，例如 2026-11-04');
-      return;
-    }
-    if (completedOn && !/^\d{4}-\d{2}-\d{2}$/.test(completedOn)) {
-      Alert.alert('日期格式不对', '结束日期请用 YYYY-MM-DD，或留空表示仍在蜕皮中');
-      return;
-    }
-    createMutation.mutate(
-      {
+  const records: ShedRecord[] = recordsQuery.data?.items ?? [];
+  const latestAlert = alertsQuery.data?.items?.[0] ?? null;
+
+  async function save() {
+    setErrorText(null);
+    if (petId === '') return;
+    try {
+      await createRecord.mutateAsync({
         started_on: startedOn,
-        completed_on: completedOn || undefined,
-        notes: notes.trim() || undefined,
-      },
-      {
-        onSuccess: resetForm,
-        onError: (error: Error) => Alert.alert('保存失败', error.message),
-      },
-    );
+        completed_on: completed ? startedOn : undefined,
+        notes: notes.trim() === '' ? undefined : notes.trim(),
+      });
+      setFormOpen(false);
+      setNotes('');
+      setCompleted(false);
+      setStartedOn(todayIso());
+    } catch (err) {
+      setErrorText(err instanceof Error ? err.message : '没保存上，再试一次');
+    }
   }
 
-  function handleComplete(record: ShedRecord) {
-    updateMutation.mutate(
-      { recordId: record.id, input: { started_on: record.started_on, completed_on: todayIso() } },
-      { onError: (error: Error) => Alert.alert('更新失败', error.message) },
-    );
+  async function markDone(record: ShedRecord) {
+    try {
+      await updateRecord.mutateAsync({
+        recordId: record.id,
+        input: {
+          started_on: record.started_on,
+          completed_on: todayIso(),
+          notes: record.notes ?? undefined,
+        },
+      });
+    } catch {
+      Alert.alert('没改成', '网络好像不太顺，等一下再试。');
+    }
   }
 
-  function handleDelete(record: ShedRecord) {
-    Alert.alert('删除这条记录？', `${formatDateCn(record.started_on)} 的蜕皮记录将被删除，不可恢复。`, [
-      { text: '取消', style: 'cancel' },
+  function confirmDelete(record: ShedRecord) {
+    Alert.alert('删掉这条记录？', '删了就找不回来了。', [
+      { text: '不删', style: 'cancel' },
       {
         text: '删除',
         style: 'destructive',
-        onPress: () =>
-          deleteMutation.mutate(record.id, {
-            onError: (error: Error) => Alert.alert('删除失败', error.message),
-          }),
+        onPress: () => void deleteRecord.mutateAsync(record.id).catch(() => undefined),
       },
     ]);
   }
@@ -205,151 +106,154 @@ export default function LogScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
+        <PageHeader title="蜕皮记录" subtitle="每次蜕皮记一条，方便回看" />
         <Card>
           <EmptyState
             icon="cloud-offline"
-            title="先配置服务器"
-            subtitle="到「设置」页填写服务器地址，才能记录与查看蜕皮日志"
+            title="App 还没连上电脑"
+            subtitle="在「我的 → 高级设置」里填入电脑地址。"
           />
         </Card>
       </Screen>
     );
   }
 
-  if (petsQuery.isLoading) {
-    return (
-      <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
-        <Card>
-          <EmptyState icon="hourglass" title="加载中…" />
-        </Card>
-      </Screen>
-    );
-  }
-
-  if (petsQuery.isError) {
-    return (
-      <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
-        <Card>
-          <EmptyState icon="cloud-offline" title="无法加载宠物列表" subtitle={petsQuery.error.message} />
-        </Card>
-      </Screen>
-    );
-  }
-
-  if (pets.length === 0) {
-    return (
-      <Screen>
-        <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
-        <Card style={{ gap: 12 }}>
-          <EmptyState icon="paw" title="还没有添加宠物" subtitle="先添加一只宠物，再查看蜕皮日志" />
-          <PrimaryButton title="添加宠物" onPress={() => router.push('/pet/new')} />
-        </Card>
-      </Screen>
-    );
-  }
-
-  const records: ShedRecord[] = recordsQuery.data?.items ?? [];
-
   return (
     <Screen>
-      <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
+      <PageHeader title="蜕皮记录" subtitle={pet ? `记录 ${pet.name} 的每一次蜕皮` : '每次蜕皮记一条'} />
 
-      {pets.length > 0 ? (
-        <>
-          <PetPicker pets={pets} selectedId={activePetId} onSelect={setSelectedPetId} />
-
-          {alertsQuery.data?.items[0] ? (
-            <AlertBanner alert={alertsQuery.data.items[0]} />
-          ) : null}
-
-          <View style={styles.sectionHeader}>
-            <SectionTitle>蜕皮记录{activePet ? ` · ${activePet.name}` : ''}</SectionTitle>
-            <Pressable onPress={() => (showForm ? resetForm() : setShowForm(true))} hitSlop={6}>
-              <Text style={styles.addLink}>{showForm ? '取消' : '+ 添加'}</Text>
-            </Pressable>
+      {latestAlert ? (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/alert/[id]',
+              params: {
+                id: latestAlert.id,
+                kind: latestAlert.kind,
+                image_id: latestAlert.image_id ?? '',
+                state: latestAlert.state,
+                local_date: latestAlert.local_date,
+                confidence:
+                  latestAlert.confidence !== null ? String(latestAlert.confidence) : '',
+              },
+            })
+          }
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.alertCard, pressed && styles.pressed]}
+        >
+          <View style={styles.alertIcon}>
+            <Ionicons name="notifications" size={22} color={colors.primaryDark} />
           </View>
+          <View style={styles.alertBody}>
+            <Text style={styles.alertTitle}>{alertTitle(latestAlert.kind, pet?.name)}</Text>
+            <Text style={styles.alertMeta}>
+              {shortDate(latestAlert.local_date)} · 点开看看
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
+        </Pressable>
+      ) : null}
 
-          {showForm ? (
-            <Card style={styles.formCard}>
-              <Field label="开始日期 *" value={startedOn} onChangeText={setStartedOn} placeholder="YYYY-MM-DD" />
+      {petId === '' ? (
+        <Card style={{ gap: 12 }}>
+          <EmptyState icon="paw" title="还没有你的守宫" subtitle="先建个档案，再来记录蜕皮" />
+          <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
+        </Card>
+      ) : (
+        <>
+          {formOpen ? (
+            <Card style={{ gap: 14 }}>
+              <Text style={styles.formTitle}>记一次蜕皮</Text>
               <Field
-                label="结束日期（留空 = 进行中）"
-                value={completedOn}
-                onChangeText={setCompletedOn}
-                placeholder="YYYY-MM-DD"
+                label="哪天开始蜕的"
+                placeholder="2026-11-12"
+                value={startedOn}
+                onChangeText={setStartedOn}
+                autoCapitalize="none"
               />
-              <Field label="备注" value={notes} onChangeText={setNotes} placeholder="可选，例如：尾部残留" />
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchLabel}>已经蜕完了</Text>
+                  <Text style={styles.switchHint}>还没蜕完就关着，之后再点「标记蜕完」</Text>
+                </View>
+                <Switch
+                  value={completed}
+                  onValueChange={setCompleted}
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                />
+              </View>
+              <Field
+                label="备注（可不填）"
+                placeholder="比如：这次蜕得很干净"
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+              />
               <PrimaryButton
-                title={createMutation.isPending ? '保存中…' : '保存记录'}
-                onPress={handleSubmit}
-                loading={createMutation.isPending}
+                title="保存"
+                onPress={() => void save()}
+                loading={createRecord.isPending}
               />
+              <SecondaryButton title="取消" onPress={() => setFormOpen(false)} />
+              {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
             </Card>
-          ) : null}
+          ) : (
+            <PrimaryButton title="添加一条记录" onPress={() => setFormOpen(true)} />
+          )}
+
+          <SectionTitle>以前的记录</SectionTitle>
 
           {recordsQuery.isLoading ? (
             <Card>
               <EmptyState icon="hourglass" title="加载中…" />
             </Card>
-          ) : recordsQuery.isError ? (
-            <Card>
-              <EmptyState icon="cloud-offline" title="无法加载记录" subtitle={recordsQuery.error.message} />
-            </Card>
           ) : records.length === 0 ? (
             <Card>
-              <EmptyState icon="calendar" title="还没有蜕皮记录" subtitle="每次蜕皮后记一条，方便回看蜕皮周期" />
+              <EmptyState
+                icon="calendar"
+                title="还没有记录"
+                subtitle="守宫蜕皮时点上面那个按钮记一条，以后就能看出规律。"
+              />
             </Card>
           ) : (
-            <Card style={styles.timelineCard}>
-              {records.map((record, index) => (
-                <View key={record.id} style={index < records.length - 1 ? styles.recordWrapper : undefined}>
-                  <RecordRow
-                    record={record}
-                    onComplete={() => handleComplete(record)}
-                    onDelete={() => handleDelete(record)}
-                  />
+            <View style={styles.timeline}>
+              {records.map((record) => (
+                <View key={record.id} style={styles.recordRow}>
+                  <View style={styles.timelineDot} />
+                  <View style={styles.recordBody}>
+                    <Text style={styles.recordDate}>{shortDate(record.started_on)}</Text>
+                    <Text style={styles.recordState}>
+                      {record.completed_on
+                        ? `${recordLabel(record.completed_on)} · ${shortDate(record.completed_on)}`
+                        : recordLabel(null)}
+                    </Text>
+                    {record.notes ? <Text style={styles.recordNotes}>{record.notes}</Text> : null}
+                    <View style={styles.recordActions}>
+                      {record.completed_on ? null : (
+                        <Pressable
+                          onPress={() => void markDone(record)}
+                          accessibilityRole="button"
+                          style={styles.smallButton}
+                        >
+                          <Text style={styles.smallButtonText}>标记蜕完</Text>
+                        </Pressable>
+                      )}
+                      <Pressable
+                        onPress={() => confirmDelete(record)}
+                        accessibilityRole="button"
+                        style={styles.smallButtonGhost}
+                      >
+                        <Text style={styles.smallButtonGhostText}>删除</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 </View>
               ))}
-            </Card>
-          )}
-
-          <Pressable
-            onPress={() => router.push('/risk')}
-            style={({ pressed }) => [styles.riskEntry, pressed && styles.riskPressed]}
-          >
-            <View style={styles.riskEntryBody}>
-              <Text style={styles.riskEntryTitle}>卡皮风险评估</Text>
-              <Text style={styles.riskEntrySubtitle}>回答六个问题，看看有没有蜕皮不全的风险</Text>
             </View>
-            <Text style={styles.riskEntryChevron}>›</Text>
-          </Pressable>
+          )}
         </>
-      ) : (
-        <Card>
-          <EmptyState icon="hourglass" title="加载中…" />
-        </Card>
       )}
     </Screen>
-  );
-}
-
-/** 表单输入框（避免与 ui.tsx 的 Field 重复 import 冲突，这里简单内联） */
-function Field({
-  label,
-  ...props
-}: { label: string } & ComponentProps<typeof TextInput>) {
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={styles.fieldInput}
-        placeholderTextColor={colors.mutedForeground}
-        {...props}
-      />
-    </View>
   );
 }
 
@@ -359,90 +263,127 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: colors.card,
+    borderRadius: radius.lg,
     borderWidth: 3,
     borderColor: colors.primary,
-    borderRadius: radius.lg,
-    padding: 12,
+    padding: 14,
   },
-  alertPressed: { opacity: 0.85 },
-  alertThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.md,
-    backgroundColor: colors.muted,
+  pressed: {
+    opacity: 0.85,
   },
-  alertThumbIcon: { alignItems: 'center', justifyContent: 'center' },
-  alertBody: { flex: 1, gap: 3 },
-  alertTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  alertTitle: { fontSize: 15, fontWeight: '800', color: colors.primaryDark },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.destructive,
+  alertIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  alertSub: { fontSize: 13, color: colors.mutedForeground },
-  alertHint: { fontSize: 12, fontWeight: '700', color: colors.accent },
-  sectionHeader: {
+  alertBody: {
+    flex: 1,
+    gap: 3,
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.foreground,
+  },
+  alertMeta: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+  },
+  formTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.foreground,
+  },
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
+    gap: 12,
   },
-  addLink: { fontSize: 15, fontWeight: '700', color: colors.primary },
-  formCard: { gap: 12 },
-  fieldWrap: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.foreground },
-  fieldInput: {
-    borderWidth: 3,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  switchLabel: {
     fontSize: 15,
+    fontWeight: '700',
     color: colors.foreground,
-    backgroundColor: colors.card,
   },
-  timelineCard: { gap: 0 },
-  recordWrapper: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.muted,
+  switchHint: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+    marginTop: 2,
   },
-  recordRow: { flexDirection: 'row', gap: 12, paddingVertical: 12 },
-  recordDot: {
+  error: {
+    fontSize: 14,
+    color: colors.destructive,
+  },
+  timeline: {
+    gap: 4,
+  },
+  recordRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  timelineDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: colors.primary,
-    marginTop: 5,
+    marginTop: 6,
   },
-  recordBody: { flex: 1, gap: 4 },
-  recordHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  recordRange: { fontSize: 15, fontWeight: '700', color: colors.foreground },
-  ongoingBadge: {
-    backgroundColor: '#DBEAFE',
-    borderRadius: 8,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  ongoingText: { fontSize: 11, fontWeight: '700', color: colors.accent },
-  recordNotes: { fontSize: 13, color: colors.mutedForeground },
-  recordActions: { flexDirection: 'row', gap: 16, marginTop: 2 },
-  actionComplete: { fontSize: 13, fontWeight: '700', color: colors.success },
-  actionDelete: { fontSize: 13, fontWeight: '700', color: colors.destructive },
-  riskEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  recordBody: {
+    flex: 1,
     backgroundColor: colors.card,
-    borderWidth: 3,
+    borderRadius: radius.md,
+    borderWidth: 2,
     borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    gap: 4,
+    marginBottom: 10,
   },
-  riskPressed: { opacity: 0.85 },
-  riskEntryBody: { flex: 1, gap: 3 },
-  riskEntryTitle: { fontSize: 16, fontWeight: '700', color: colors.foreground },
-  riskEntrySubtitle: { fontSize: 13, color: colors.mutedForeground },
-  riskEntryChevron: { fontSize: 26, color: colors.primary, fontWeight: '300' },
+  recordDate: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.foreground,
+  },
+  recordState: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+  },
+  recordNotes: {
+    fontSize: 14,
+    color: colors.foreground,
+    lineHeight: 20,
+  },
+  recordActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  smallButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+  },
+  smallButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  smallButtonGhost: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  smallButtonGhostText: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

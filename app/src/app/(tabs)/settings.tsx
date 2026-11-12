@@ -1,12 +1,12 @@
 /**
- * 设置 Tab：服务器地址（保存 + 测试连接）与宠物管理（列表 / 添加 / 编辑）。
- * 这是骨架的核心屏：网络层与宠物 CRUD 都在这里落地。
+ * 「我的」：守宫档案、提醒绑定、知识入口、以及折叠起来的高级设置。
+ * 高级设置里才有服务器地址——普通用户不需要看。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   Card,
@@ -20,354 +20,236 @@ import {
 } from '@/components/ui';
 import { useEnablePush } from '@/hooks/useAlerts';
 import { usePets } from '@/hooks/usePets';
-import { apiFetch } from '@/lib/api';
 import { ensureToken, resetToken } from '@/lib/auth';
 import { saveDeviceId, useDeviceId } from '@/lib/deviceId';
 import { saveServerUrl, useServerUrl } from '@/lib/serverUrl';
+import { colors, radius } from '@/lib/theme';
 import type { Pet } from '@/lib/types';
-import { clayPress, colors, radius } from '@/lib/theme';
 
-/** 测试连接状态 */
-type TestState = { kind: 'idle' } | { kind: 'testing' } | { kind: 'ok' } | { kind: 'fail' };
-
-export default function SettingsScreen() {
+export default function ProfileScreen() {
   const serverUrl = useServerUrl();
-  const [draft, setDraft] = useState<string | null>(null);
-  const [test, setTest] = useState<TestState>({ kind: 'idle' });
-  const pets = usePets();
+  const deviceId = useDeviceId();
+  const petsQuery = usePets();
+  const queryClient = useQueryClient();
+  const { state, enable, isPending } = useEnablePush();
 
-  // 输入框显示草稿（未保存的编辑），没有草稿时显示已保存地址
-  const value = draft ?? serverUrl;
+  const [deviceDraft, setDeviceDraft] = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [addressDraft, setAddressDraft] = useState('');
+  const [savedHint, setSavedHint] = useState<string | null>(null);
 
-  async function handleSave(): Promise<void> {
-    await saveServerUrl(value);
-    setDraft(null);
-    setTest({ kind: 'idle' });
+  // 没手动改过时显示已保存的设备号；一旦开始输入就以输入框为准
+  const deviceValue = deviceDraft === '' ? deviceId : deviceDraft;
+
+  const pets: Pet[] = petsQuery.data?.items ?? [];
+
+  function pushStatusText(): string {
+    if (state.kind === 'ok') return '通知已开启，发现蜕皮会直接弹到手机上。';
+    if (state.kind === 'bound') return state.message;
+    if (state.kind === 'denied') return '系统通知被拒绝了，提醒会显示在「蜕皮记录」里。';
+    if (state.kind === 'unsupported') return '这台设备暂时收不到系统通知，提醒会显示在「蜕皮记录」里。';
+    if (state.kind === 'working') return '正在开启…';
+    if (state.kind === 'error') return '没开启成功，稍后再试。';
+    return '';
   }
 
-  async function handleTest(): Promise<void> {
-    // 测试用当前输入的地址（不必先保存）
-    const base = value.trim().replace(/\/+$/, '');
-    if (!base) {
-      setTest({ kind: 'fail' });
-      return;
-    }
-    setTest({ kind: 'testing' });
+  async function handleEnable() {
+    const id = deviceDraft.trim() || deviceId || 'gecko-eye-01';
+    await saveDeviceId(id);
+    await enable(id, pets[0]?.id ?? null);
+  }
+
+  async function handleSaveAddress() {
+    const value = addressDraft.trim();
+    if (value === '') return;
+    await saveServerUrl(value);
+    setSavedHint('地址已保存');
+    void queryClient.invalidateQueries();
+  }
+
+  async function handleReset() {
+    await resetToken();
     try {
-      const res = await fetch(`${base}/healthz`);
-      setTest(res.ok ? { kind: 'ok' } : { kind: 'fail' });
+      await ensureToken();
     } catch {
-      setTest({ kind: 'fail' });
+      // 服务器不通时静默，下一次请求会再试
     }
+    queryClient.clear();
+    setSavedHint('已换了一个新身份，原来的档案看不到了');
   }
 
   return (
     <Screen>
-      <PageHeader title="设置" subtitle="服务器连接与宠物档案" />
+      <PageHeader title="我的" subtitle="你的守宫、提醒和设置" />
 
-      <Card style={styles.gapColumn}>
-        <SectionTitle>服务器</SectionTitle>
-        <Field
-          label="地址（电脑上 FastAPI 服务的局域网地址）"
-          value={value}
-          onChangeText={(text) => setDraft(text)}
-          placeholder="http://192.168.x.x:8000"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-        />
-        <View style={styles.row}>
-          <PrimaryButton
-            title="保存"
-            onPress={() => void handleSave()}
-            style={styles.grow}
-          />
-          <SecondaryButton title="测试连接" onPress={() => void handleTest()} style={styles.grow} />
-        </View>
-        <TestStatus state={test} />
-      </Card>
-
-      <Card style={styles.gapColumn}>
+      <Card style={{ gap: 14 }}>
         <View style={styles.rowBetween}>
-          <SectionTitle>宠物管理</SectionTitle>
-          <Pressable
-            onPress={() => router.push('/pet/new')}
-            style={({ pressed }) => [styles.addChip, pressed && clayPress]}
-          >
-            <Ionicons name="add" size={18} color="#FFFFFF" />
+          <SectionTitle>我的守宫</SectionTitle>
+          <Pressable onPress={() => router.push('/pet/new')} accessibilityRole="button" style={styles.addChip}>
             <Text style={styles.addChipText}>添加</Text>
           </Pressable>
         </View>
 
-        {!serverUrl ? (
-          <EmptyState
-            icon="server-outline"
-            title="还没配置服务器"
-            subtitle="先在上方填写地址并保存，宠物档案存在你的电脑上"
-          />
-        ) : pets.isPending ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
-        ) : pets.isError ? (
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="拉取宠物列表失败"
-            subtitle={pets.error.message}
-          />
-        ) : pets.data.items.length === 0 ? (
-          <EmptyState
-            icon="paw"
-            title="还没有宠物"
-            subtitle="点右上角「添加」，建立第一只守宫的档案"
-          />
+        {petsQuery.isLoading ? (
+          <Text style={styles.muted}>加载中…</Text>
+        ) : pets.length === 0 ? (
+          <EmptyState icon="paw" title="还没有档案" subtitle="点右上角「添加」给守宫建个档案" />
         ) : (
-          <View style={styles.gapColumn}>
-            {pets.data.items.map((pet) => (
-              <PetRow key={pet.id} pet={pet} />
+          <View style={{ gap: 10 }}>
+            {pets.map((pet) => (
+              <Pressable
+                key={pet.id}
+                onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.petRow, pressed && styles.pressed]}
+              >
+                <View style={styles.petIcon}>
+                  <Ionicons name="paw" size={18} color={colors.primaryDark} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.petName}>{pet.name}</Text>
+                  <Text style={styles.petMeta}>{pet.species ?? '豹纹守宫'}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+              </Pressable>
             ))}
           </View>
         )}
       </Card>
 
-      <IdentityCard />
+      <Card style={{ gap: 12 }}>
+        <SectionTitle>蜕皮提醒</SectionTitle>
+        <Text style={styles.body}>
+          接上摄像头之后，它每 30 分钟拍一张。发现守宫身上有蜕皮的白皮，就会提醒你。
+        </Text>
+        <Field
+          label="摄像头编号"
+          placeholder="gecko-eye-01"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={deviceValue}
+          onChangeText={setDeviceDraft}
+        />
+        <PrimaryButton
+          title="保存并开启通知"
+          onPress={() => void handleEnable()}
+          loading={isPending}
+        />
+        {pushStatusText() !== '' ? <Text style={styles.hint}>{pushStatusText()}</Text> : null}
+      </Card>
 
-      <DeviceCard />
+      <Pressable
+        onPress={() => router.push('/knowledge')}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Ionicons name="book-outline" size={20} color={colors.primaryDark} />
+        <Text style={styles.linkText}>蜕皮知识</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push('/risk')}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Ionicons name="medkit-outline" size={20} color={colors.primaryDark} />
+        <Text style={styles.linkText}>蜕皮不顺利？做个检查</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => setAdvancedOpen((v) => !v)}
+        accessibilityRole="button"
+        style={styles.advancedToggle}
+      >
+        <Text style={styles.advancedText}>
+          {advancedOpen ? '收起高级设置' : '高级设置'}
+        </Text>
+      </Pressable>
+
+      {advancedOpen ? (
+        <Card style={{ gap: 12 }}>
+          <Text style={styles.hint}>
+            只有自己搭服务器的人才需要改这里。地址格式像 http://192.168.1.10:8000
+          </Text>
+          <Field
+            label="电脑上那个程序的地址"
+            placeholder={serverUrl === '' ? '还没填' : serverUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={addressDraft}
+            onChangeText={setAddressDraft}
+          />
+          <PrimaryButton title="保存地址" onPress={() => void handleSaveAddress()} />
+          <SecondaryButton title="重置身份（会看不到原来的档案）" onPress={() => void handleReset()} />
+          {savedHint ? <Text style={styles.hint}>{savedHint}</Text> : null}
+        </Card>
+      ) : null}
+
+      <Text style={styles.about}>守宫蜕皮小助手 · 0.1.0</Text>
     </Screen>
   );
 }
 
-function IdentityCard() {
-  const serverUrl = useServerUrl();
-  const queryClient = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const me = useQuery({
-    queryKey: ['me', serverUrl],
-    enabled: serverUrl !== '',
-    queryFn: () => apiFetch<{ user_id: string }>('/api/v1/users/me'),
-    retry: 0,
-  });
-  const userId = me.data?.user_id ?? null;
-
-  async function handleReset(): Promise<void> {
-    setBusy(true);
-    try {
-      await resetToken();
-      if (serverUrl) {
-        await ensureToken();
-        // 清掉旧账号的缓存，挂载中的查询会自动按新账号重新拉取。
-        queryClient.clear();
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card style={styles.gapColumn}>
-      <SectionTitle>身份</SectionTitle>
-      <Text style={styles.hint}>
-        本机使用匿名账号保存数据，不需要注册登录。宠物档案只属于这个账号。
-      </Text>
-      <Text style={styles.identityLine}>
-        {!serverUrl
-          ? '未连接服务器'
-          : userId
-            ? `匿名账号 ${userId.slice(0, 8)}`
-            : '正在获取账号…'}
-      </Text>
-      <Text style={styles.hint}>
-        换手机或清除 App 数据后会得到新账号，原来的宠物看不到。
-      </Text>
-      <SecondaryButton
-        title={busy ? '正在重置…' : '重置身份'}
-        onPress={() => void handleReset()}
-        disabled={!serverUrl || busy}
-      />
-    </Card>
-  );
-}
-
-function DeviceCard() {
-  const serverUrl = useServerUrl();
-  const savedDeviceId = useDeviceId();
-  const pets = usePets();
-  const [draft, setDraft] = useState<string | null>(null);
-  const [boundPetId, setBoundPetId] = useState<string | null>(null);
-  const { state, enable, isPending } = useEnablePush();
-  const value = draft ?? savedDeviceId;
-  const petItems = pets.data?.items ?? [];
-  const selectedPetId = boundPetId ?? petItems[0]?.id ?? null;
-
-  async function handleEnable(): Promise<void> {
-    if (!value.trim()) return;
-    await saveDeviceId(value);
-    setDraft(null);
-    await enable(value, selectedPetId);
-  }
-
-  return (
-    <Card style={styles.gapColumn}>
-      <SectionTitle>摄像头与提醒</SectionTitle>
-      <Text style={styles.hint}>
-        填上摄像头的设备编号并绑定一只宠物。设备检测到蜕皮时，会推送提醒到这里。
-      </Text>
-      <Field
-        label="设备编号（device_id）"
-        value={value}
-        onChangeText={(text) => setDraft(text)}
-        placeholder="gecko-eye-01"
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-      <Text style={styles.pickLabel}>绑定宠物</Text>
-      {petItems.length === 0 ? (
-        <Text style={styles.hint}>先在「宠物管理」里添加一只宠物</Text>
-      ) : (
-        <View style={styles.chipWrap}>
-          {petItems.map((pet) => {
-            const active = pet.id === selectedPetId;
-            return (
-              <Pressable
-                key={pet.id}
-                onPress={() => setBoundPetId(pet.id)}
-                style={[styles.petChip, active && styles.petChipActive]}
-              >
-                <Text style={[styles.petChipText, active && styles.petChipTextActive]}>
-                  {pet.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-      <PrimaryButton
-        title={isPending ? '正在启用…' : '保存并启用通知'}
-        onPress={() => void handleEnable()}
-        loading={isPending}
-        disabled={!serverUrl || !value.trim()}
-      />
-      <PushStatusText state={state} />
-    </Card>
-  );
-}
-
-function PushStatusText({ state }: { state: ReturnType<typeof useEnablePush>['state'] }) {
-  if (state.kind === 'idle') return null;
-  if (state.kind === 'working') {
-    return <Text style={styles.hint}>正在申请通知权限并注册…</Text>;
-  }
-  if (state.kind === 'ok') {
-    return <Text style={[styles.hint, { color: colors.success }]}>✓ 已启用，检测到蜕皮会推送提醒</Text>;
-  }
-  const color = state.kind === 'denied' || state.kind === 'error' ? colors.destructive : colors.warning;
-  return <Text style={[styles.hint, { color }]}>{state.message}</Text>;
-}
-
-function TestStatus({ state }: { state: TestState }) {
-  if (state.kind === 'idle') return null;
-  if (state.kind === 'testing') {
-    return (
-      <Text style={styles.testText}>
-        <ActivityIndicator size="small" color={colors.mutedForeground} /> 正在测试…
-      </Text>
-    );
-  }
-  if (state.kind === 'ok') {
-    return (
-      <Text style={[styles.testText, { color: colors.success }]}>✓ 连接正常</Text>
-    );
-  }
-  return <Text style={[styles.testText, { color: colors.destructive }]}>✗ 连不上，检查地址与网络</Text>;
-}
-
-function PetRow({ pet }: { pet: Pet }) {
-  const subtitle = [pet.species, pet.morph].filter(Boolean).join(' · ') || '未填写品种';
-  return (
-    <Pressable
-      onPress={() => router.push(`/pet/${pet.id}`)}
-      style={({ pressed }) => [styles.petRow, pressed && clayPress]}
-    >
-      <View style={styles.petAvatar}>
-        <Ionicons name="paw" size={20} color={colors.primary} />
-      </View>
-      <View style={styles.grow}>
-        <Text style={styles.petName}>{pet.name}</Text>
-        <Text style={styles.petSub}>{subtitle}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  gapColumn: {
-    gap: 12,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
   rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  grow: {
-    flex: 1,
-  },
-  testText: {
-    fontSize: 13,
-    color: colors.mutedForeground,
-    fontWeight: '600',
-  },
   addChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: 'center',
     borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.primaryDark,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: colors.primary,
   },
   addChipText: {
     color: '#FFFFFF',
-    fontWeight: '700',
     fontSize: 13,
+    fontWeight: '800',
   },
-  loadingRow: {
-    paddingVertical: 16,
-    alignItems: 'center',
+  muted: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+  },
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.foreground,
   },
   petRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.muted,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 12,
-  },
-  petAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
     backgroundColor: colors.background,
-    borderWidth: 2,
-    borderColor: colors.border,
+    minHeight: 56,
+  },
+  pressed: {
+    opacity: 0.85,
+  },
+  petIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   petName: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: colors.foreground,
   },
-  petSub: {
-    fontSize: 12,
+  petMeta: {
+    fontSize: 13,
     color: colors.mutedForeground,
   },
   hint: {
@@ -375,39 +257,40 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.mutedForeground,
   },
-  identityLine: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  pickLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.foreground,
-  },
-  chipWrap: {
+  linkRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  petChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 3,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    minHeight: 56,
   },
-  petChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
-  },
-  petChipText: {
-    fontSize: 14,
+  linkText: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.foreground,
   },
-  petChipTextActive: {
-    color: '#FFFFFF',
+  advancedToggle: {
+    paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  advancedText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.mutedForeground,
+    textDecorationLine: 'underline',
+  },
+  about: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+    textAlign: 'center',
+    marginTop: 8,
   },
 });

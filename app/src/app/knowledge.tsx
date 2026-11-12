@@ -1,11 +1,11 @@
 /**
- * 知识 Tab：六个话题卡片列表，点击进入详情。
+ * 蜕皮知识列表（从「我的」进入，不再是独立 Tab）。
  * 后端：GET /api/v1/knowledge/topics。
  */
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PageHeader, Screen } from '@/components/ui';
+import { Card, EmptyState, Screen } from '@/components/ui';
 import { useKnowledgeTopics } from '@/hooks/useKnowledge';
 import { useServerUrl } from '@/lib/serverUrl';
 import { colors, radius } from '@/lib/theme';
@@ -16,14 +16,12 @@ export default function KnowledgeScreen() {
 
   return (
     <Screen>
-      <PageHeader title="知识" subtitle="豹纹守宫饲养与蜕皮护理" />
-
       {serverUrl === '' ? (
         <Card>
           <EmptyState
             icon="cloud-offline"
-            title="先配置服务器"
-            subtitle="到「设置」页填写服务器地址，才能加载知识库内容"
+            title="App 还没连上电脑"
+            subtitle="在「我的 → 高级设置」里填入电脑地址。"
           />
         </Card>
       ) : topicsQuery.isLoading ? (
@@ -32,7 +30,7 @@ export default function KnowledgeScreen() {
         </Card>
       ) : topicsQuery.isError ? (
         <Card>
-          <EmptyState icon="cloud-offline" title="无法加载知识库" subtitle={topicsQuery.error.message} />
+          <EmptyState icon="cloud-offline" title="加载不出来" subtitle="检查一下网络，稍后再试。" />
         </Card>
       ) : (
         <View style={styles.list}>
@@ -40,6 +38,7 @@ export default function KnowledgeScreen() {
             <Pressable
               key={topic.slug}
               onPress={() => router.push(`/topic/${topic.slug}`)}
+              accessibilityRole="button"
               style={({ pressed }) => [styles.topicCard, pressed && styles.topicPressed]}
             >
               <View style={styles.indexBadge}>
@@ -71,6 +70,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: 16,
     gap: 12,
+    minHeight: 64,
   },
   topicPressed: { opacity: 0.85 },
   indexBadge: {

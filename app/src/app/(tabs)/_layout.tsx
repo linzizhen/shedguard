@@ -1,10 +1,11 @@
 /**
- * 底部四 Tab：拍照查验 / 蜕皮日志 / 知识 / 设置。
- * 当前 Tab 橙色高亮；白底 tabBar、浅橙描边。
+ * 底部三个 Tab：首页（拍照）/ 蜕皮记录 / 我的。
+ * 只有三格，窄屏也不会被裁；技术设置全部收进「我的」里。
  */
+import type { PropsWithChildren } from 'react';
+
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
-import type { PropsWithChildren } from 'react';
 
 import { colors } from '@/lib/theme';
 
@@ -33,13 +34,12 @@ export default function TabsLayout() {
           paddingHorizontal: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '700',
         },
         tabBarItemStyle: {
           flex: 1,
           minWidth: 0,
-          maxWidth: '25%',
           paddingHorizontal: 0,
         },
       }}
@@ -47,32 +47,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '拍照查验',
+          title: '拍照',
           tabBarIcon: ({ color, size }) => <TabIcon name="camera" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="log"
         options={{
-          title: '蜕皮日志',
+          title: '蜕皮记录',
           tabBarIcon: ({ color, size }) => (
             <TabIcon name="calendar-outline" color={color} size={size} />
           ),
         }}
       />
       <Tabs.Screen
-        name="knowledge"
-        options={{
-          title: '知识',
-          tabBarIcon: ({ color, size }) => <TabIcon name="book-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
-          title: "设置",
+          title: '我的',
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="settings-outline" color={color} size={size} />
+            <TabIcon name="person-outline" color={color} size={size} />
           ),
         }}
       />
