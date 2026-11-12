@@ -31,7 +31,7 @@
 | ESP32-S3-EYE 固件 | 代码完成，未上板 | WiFi、NTP、定时抓拍、multipart 上传、断网补传队列，`idf.py build` 通过 |
 | 真实饲养箱数据 | 缺口 | 尚无自采照片；蒙白（opaque）样本为零 |
 
-完整的阶段计划与决策记录见 [`docs/handoff.md`](docs/handoff.md) 与 [`docs/roadmap.md`](docs/roadmap.md)。
+完整的里程碑计划与决策记录见 [`docs/plan.md`](docs/plan.md)（**唯一权威计划**）与 [`docs/handoff.md`](docs/handoff.md)。
 
 ## 目录结构
 
