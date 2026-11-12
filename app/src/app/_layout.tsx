@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useNotificationRefresh } from '@/hooks/useAlerts';
+import { ensureToken, loadToken } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/deviceId';
 import { loadServerUrl } from '@/lib/serverUrl';
 import { colors } from '@/lib/theme';
@@ -34,8 +35,17 @@ export default function RootLayout() {
   );
 
   useEffect(() => {
-    void loadServerUrl();
-    void loadDeviceId();
+    void (async () => {
+      await loadServerUrl();
+      void loadDeviceId();
+      await loadToken();
+      // 已配置服务器时提前领取匿名账号，避免首个请求等待注册。
+      try {
+        await ensureToken();
+      } catch {
+        // 未配置服务器或注册失败时忽略，首个 API 请求会再试。
+      }
+    })();
   }, []);
 
   return (

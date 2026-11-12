@@ -17,6 +17,7 @@ import {
 } from '@/hooks/useShed';
 import { usePets } from '@/hooks/usePets';
 import { useDeviceId } from '@/lib/deviceId';
+import { imageUrl } from '@/lib/auth';
 import { useServerUrl } from '@/lib/serverUrl';
 import { todayIso, formatDateCn } from '@/lib/dates';
 import { colors, radius } from '@/lib/theme';
@@ -29,7 +30,7 @@ const ALERT_STATE_LABEL: Record<string, string> = {
   unknown: '状态待确认',
 };
 
-function AlertBanner({ alert, serverUrl }: { alert: AlertItem; serverUrl: string }) {
+function AlertBanner({ alert }: { alert: AlertItem }) {
   const unread = !alert.read_at_utc;
   const label = ALERT_STATE_LABEL[alert.state] ?? '蜕皮提醒';
   return (
@@ -49,7 +50,7 @@ function AlertBanner({ alert, serverUrl }: { alert: AlertItem; serverUrl: string
       style={({ pressed }) => [styles.alertCard, pressed && styles.alertPressed]}
     >
       <Image
-        source={{ uri: `${serverUrl}/api/v1/images/${alert.image_id}` }}
+        source={{ uri: imageUrl(alert.image_id) }}
         style={styles.alertThumb}
       />
       <View style={styles.alertBody}>
@@ -239,7 +240,7 @@ export default function LogScreen() {
           <PetPicker pets={pets} selectedId={activePetId} onSelect={setSelectedPetId} />
 
           {alertsQuery.data?.items[0] ? (
-            <AlertBanner alert={alertsQuery.data.items[0]} serverUrl={serverUrl} />
+            <AlertBanner alert={alertsQuery.data.items[0]} />
           ) : null}
 
           <View style={styles.sectionHeader}>

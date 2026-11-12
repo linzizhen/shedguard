@@ -81,6 +81,7 @@ npx eslint .       # 代码检查
 | 接口 | 用途 | 状态 |
 |------|------|------|
 | `GET /healthz` | 测试连接 | 已接 |
+| `POST /api/v1/users/anonymous`、`GET /api/v1/users/me` | 匿名账号：首次启动自动领取令牌，后续请求带 `Authorization: Bearer` | 已接 |
 | `GET/POST /api/v1/pets`、`PUT/DELETE /api/v1/pets/{id}` | 宠物档案 CRUD | 已接 |
 | `POST /api/v1/pets/{id}/check-photo` | 拍照查验 | 已接 |
 | `GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` | 蜕皮日志 | 已接 |
@@ -92,7 +93,8 @@ npx eslint .       # 代码检查
 
 ## 已知限制
 
-- 无鉴权：服务端与 App 都假定家庭局域网环境
+- 账号：本机匿名令牌（Bearer），宠物按账号隔离；换机或清数据会丢失账号，历史宠物看不到
+- 仍无 HTTPS：令牌在局域网内明文传输；令牌明文存 AsyncStorage
 - 服务器地址、设备编号明文存 AsyncStorage
 - 蜕皮状态分类器目前只有「正常 / 蜕皮中」两类，蒙白（opaque）暂无训练样本，会出现但概率低；分类准确性受网图训练数据限制
 - 推送依赖 Expo Push 服务与外网；Web 浏览器不支持推送，仅原生 App 可用

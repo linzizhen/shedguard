@@ -89,16 +89,24 @@ export function PrimaryButton({
 export function SecondaryButton({
   title,
   onPress,
+  disabled = false,
   style,
 }: {
   title: string;
   onPress: () => void;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.buttonSecondary, pressed && clayPress, style]}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.buttonSecondary,
+        disabled && styles.buttonDisabled,
+        pressed && clayPress,
+        style,
+      ]}
     >
       <Text style={styles.buttonSecondaryText}>{title}</Text>
     </Pressable>

@@ -3,12 +3,12 @@
  * 路由参数由日志屏的 AlertBanner 传入（避免额外按 id 查询接口）。
  */
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { Card, PageHeader, Screen } from '@/components/ui';
 import { useMarkAlertRead } from '@/hooks/useAlerts';
-import { useServerUrl } from '@/lib/serverUrl';
+import { ensureToken, imageUrl } from '@/lib/auth';
 import { formatDateCn } from '@/lib/dates';
 import { colors, radius } from '@/lib/theme';
 
@@ -20,7 +20,6 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 export default function AlertDetailScreen() {
-  const serverUrl = useServerUrl();
   const params = useLocalSearchParams<{
     id: string;
     image_id?: string;
@@ -30,6 +29,14 @@ export default function AlertDetailScreen() {
   }>();
   const markRead = useMarkAlertRead();
   const done = useRef(false);
+  const [tokenReady, setTokenReady] = useState(false);
+
+  useEffect(() => {
+    // 图片 URL 用 ?token= 鉴权，确保令牌就绪后再渲染图片。
+    void ensureToken()
+      .then(() => setTokenReady(true))
+      .catch(() => setTokenReady(false));
+  }, []);
 
   useEffect(() => {
     if (done.current || !params.id) return;
@@ -45,9 +52,9 @@ export default function AlertDetailScreen() {
     <Screen>
       <PageHeader title={label} subtitle="设备自动抓拍的蜕皮提醒" />
       <Card style={styles.imageCard}>
-        {params.image_id ? (
+        {params.image_id && tokenReady ? (
           <Image
-            source={{ uri: `${serverUrl}/api/v1/images/${params.image_id}` }}
+            source={{ uri: imageUrl(params.image_id) }}
             style={styles.image}
             resizeMode="contain"
           />

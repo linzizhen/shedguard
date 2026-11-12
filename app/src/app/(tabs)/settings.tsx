@@ -3,6 +3,7 @@
  * 这是骨架的核心屏：网络层与宠物 CRUD 都在这里落地。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -19,6 +20,8 @@ import {
 } from '@/components/ui';
 import { useEnablePush } from '@/hooks/useAlerts';
 import { usePets } from '@/hooks/usePets';
+import { apiFetch } from '@/lib/api';
+import { ensureToken, resetToken } from '@/lib/auth';
 import { saveDeviceId, useDeviceId } from '@/lib/deviceId';
 import { saveServerUrl, useServerUrl } from '@/lib/serverUrl';
 import type { Pet } from '@/lib/types';
@@ -127,8 +130,61 @@ export default function SettingsScreen() {
         )}
       </Card>
 
+      <IdentityCard />
+
       <DeviceCard />
     </Screen>
+  );
+}
+
+function IdentityCard() {
+  const serverUrl = useServerUrl();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const me = useQuery({
+    queryKey: ['me', serverUrl],
+    enabled: serverUrl !== '',
+    queryFn: () => apiFetch<{ user_id: string }>('/api/v1/users/me'),
+    retry: 0,
+  });
+  const userId = me.data?.user_id ?? null;
+
+  async function handleReset(): Promise<void> {
+    setBusy(true);
+    try {
+      await resetToken();
+      if (serverUrl) {
+        await ensureToken();
+        // 清掉旧账号的缓存，挂载中的查询会自动按新账号重新拉取。
+        queryClient.clear();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card style={styles.gapColumn}>
+      <SectionTitle>身份</SectionTitle>
+      <Text style={styles.hint}>
+        本机使用匿名账号保存数据，不需要注册登录。宠物档案只属于这个账号。
+      </Text>
+      <Text style={styles.identityLine}>
+        {!serverUrl
+          ? '未连接服务器'
+          : userId
+            ? `匿名账号 ${userId.slice(0, 8)}`
+            : '正在获取账号…'}
+      </Text>
+      <Text style={styles.hint}>
+        换手机或清除 App 数据后会得到新账号，原来的宠物看不到。
+      </Text>
+      <SecondaryButton
+        title={busy ? '正在重置…' : '重置身份'}
+        onPress={() => void handleReset()}
+        disabled={!serverUrl || busy}
+      />
+    </Card>
   );
 }
 
@@ -318,6 +374,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.mutedForeground,
+  },
+  identityLine: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.foreground,
   },
   pickLabel: {
     fontSize: 13,

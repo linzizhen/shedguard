@@ -5,6 +5,7 @@
  * - 错误契约与后端一致：`{"error": {"code", "message", "request_id"}}`。
  * - 204 无-body 响应（DELETE）返回 undefined。
  */
+import { ensureToken, getToken, resetToken } from './auth';
 import { getServerUrl } from './serverUrl';
 
 /** 后端统一错误体 */
@@ -37,11 +38,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(NO_SERVER, '请先在「设置」里填写服务器地址', 0);
   }
 
-  let res: Response;
+  const response = await send(base, path, init);
+  if (response.status === 401) {
+    // 令牌失效（如服务端数据库重置）：清空后重新注册再试一次。
+    await resetToken();
+    return parse<T>(await send(base, path, init, true));
+  }
+  return parse<T>(response);
+}
+
+async function send(
+  base: string,
+  path: string,
+  init: RequestInit | undefined,
+  retry = false,
+): Promise<Response> {
+  let token = getToken();
+  if (!token || retry) token = await ensureToken();
   try {
-    res = await fetch(`${base}${path}`, {
+    return await fetch(`${base}${path}`, {
       ...init,
       headers: {
+        Authorization: `Bearer ${token}`,
         // JSON 字符串体才显式设 Content-Type；FormData（multipart）的边界必须由运行时生成
         ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
         ...init?.headers,
@@ -50,7 +68,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   } catch {
     throw new ApiError('NETWORK_ERROR', '无法连接服务器，请检查地址与网络', 0);
   }
+}
 
+async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let code = 'HTTP_ERROR';
     let message = `请求失败（HTTP ${res.status}）`;
