@@ -88,7 +88,7 @@ shedguard 是一个爬宠蜕皮监测系统：饲养箱摄像头定时抓拍 →
 | P15 | 知识库核实 | 30+ 处 `[待核实]` 换来源；剩余 5 项需实物 | ✅ 第一轮 / ⏸ 剩余 | `docs/gecko-params.md` |
 | **P16** | **鉴权与多用户隔离** | 匿名设备账号、宠物/日志/提醒按用户隔离、401 契约、固件设备令牌 | ✅ 完成（服务端 + App） | `docs/specs/2026-11-12-auth-and-multiuser-design.md` |
 | P17 | 掉线与无检出兜底提醒 | 设备超 N 小时无上传或无有效画面 → 生成「设备异常」提醒，避免静默误导 | ✅ 完成 | `docs/specs/2026-11-12-device-health-alerts-design.md` |
-| P18 | 推送真链路验证 | EAS + projectId + development build，真机收到真实推送 | ⬜ 待真机 | 见 §4 |
+| P18 | 推送真链路验证 | EAS + projectId + development build，真机收到真实推送；仓库侧已备 `app/eas.json`、`expo-dev-client`、Android 明文流量开关与 `docs/push-setup.md` 操作手册 | 🔄 代码就绪，待 EAS 构建装机 | `docs/push-setup.md` |
 | P19 | CI 版本验证 | 改为 `pip install -e ".[dev]"` 由 pyproject 区间从公开 PyPI 解析，`requirements.lock` 仅作本地 3.14 复现记录 | ✅ 完成 | `.github/workflows/ci.yml` |
 | P20 | App 真机自测 | iOS/Android 逐项验收相机、相册、通知权限 | ⬜ 待真机 | 清单文档 |
 
@@ -114,7 +114,7 @@ shedguard 是一个爬宠蜕皮监测系统：饲养箱摄像头定时抓拍 →
 | 1 | **P16 鉴权 + 多用户隔离** | 否 | ✅ 完成 |
 | 2 | **P17 掉线/无检出兜底提醒** | 否 | ✅ 完成 |
 | 3 | **P19 CI 版本验证** | 否 | ✅ 完成 |
-| 4 | P18 推送真链路（EAS + development build） | **需要一台真手机** | ⬜ 当前主线 |
+| 4 | P18 推送真链路（EAS + development build） | **需要一台真手机** | 🔄 代码就绪，待装机 |
 | 5 | P20 App 真机自测 | **需要真手机** | ⬜ |
 
 **若没有真手机**：P18/P20 无法推进，可转「数据集扩充与复核」或「App 细节打磨」，均不改变主线。
@@ -151,6 +151,7 @@ shedguard 是一个爬宠蜕皮监测系统：饲养箱摄像头定时抓拍 →
 | 2026-11-12 | P16 鉴权与多用户隔离落地：匿名账号 + Bearer + 按用户隔离；353 测试 / 覆盖率 95.81%；App 增加身份卡片与令牌自动重注册 | P16 完成，当前主线转 P17 | 规格 §实现记录；服务端 `feat(server)` 与 App `feat(app)` 两个提交 |
 | 2026-11-12 | P17 设备健康兜底落地：`device_silent` / `no_detection` 两类提醒 + 后台每 10 分钟扫描；365 测试 / 覆盖率 95.94% | P17 完成，当前主线转 P19 | 规格 §9 实现记录 |
 | 2026-11-12 | P19 CI 修复：根因是 lock 指向本地合成的非公开版本；CI 改 `pip install -e ".[dev]"`，lock 保留为本地 3.14 复现 | 让 CI 真正可跑，退化为区间解析 | `.github/workflows/ci.yml` |
+| 2026-11-12 | P18 仓库侧就绪：`app/eas.json` 三 profile、`expo-dev-client`、`expo-build-properties` 开 Android 明文流量、`docs/push-setup.md` 手把手手册；获取 token 前先校验 projectId | 真机推送无法在没有 Expo 账号的机器上完成，代码先备齐 | `docs/push-setup.md` |
 
 ---
 

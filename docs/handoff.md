@@ -124,7 +124,7 @@ shedguard/
 17. ~~P17 掉线与无检出兜底提醒~~ —— 见第 18 项
 18. ~~P17 设备健康兜底提醒~~ —— 已完成（2026-11-12）：新增 `device_silent` / `no_detection` 两类提醒，后台每 10 分钟扫描已注册设备（活跃时段内静默 6 小时、连续 5 次未检出）；`AlertService.create_alert` 通用化并支持按 kind 推送；App 日志横幅与详情页按 kind 显示。365 测试 / 覆盖率 95.94% / ruff+mypy 全绿
 19. ~~P19 CI 版本验证~~ —— 已完成（2026-11-12）：根因是 `requirements.lock` 从本地 Python 3.14 freeze 出的合成版本（如 `numpy==2.5.4`）在公开 PyPI 并不存在；CI 改为 `pip install -e ".[dev]"` 按 `pyproject.toml` 区间解析，`requirements.lock` 仅作本地复现记录；已实测 cp312 / cp313 的 linux 轮子齐全（numpy 2.2.6、opencv-python-headless 5.0.0.93、onnxruntime 1.31.1）
-20. **P18 推送真链路** —— 当前主线（需一台真手机）：补 `app/eas.json` 与 `extra.eas.projectId`、做 development build、真机收到真实 Expo 推送；随后 P20 真机自测
+20. **P18 推送真链路** —— 当前主线（需一台真手机）：仓库侧已就绪（`app/eas.json`、`expo-dev-client`、Android 明文流量开关、`docs/push-setup.md` 手册）。待你在自己机器上 `eas login` + `eas init` + `eas build -p android --profile development`，装到手机后在设置页点「保存并启用通知」，再按手册第 5 节验证真实推送；随后 P20 真机自测
 
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
 
