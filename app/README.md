@@ -22,6 +22,18 @@ npx expo start          # 起开发服务
 > 也可以在电脑浏览器预览：`npx expo start --web`，打开 `http://localhost:8081`。
 > 注意浏览器预览从「网页」跨域请求后端，若服务端未开 CORS 会失败；手机 Expo Go 走原生请求，无跨域问题，是推荐方式。
 
+### 要收推送通知：必须打 development build
+
+Expo Go 不支持远程推送。要真机收到蜕皮提醒，用 `app/eas.json` 里的 `development` profile 打包：
+
+```bash
+npm install -g eas-cli
+eas login && eas init          # 写入 extra.eas.projectId
+eas build -p android --profile development
+```
+
+完整步骤与排错见 [docs/push-setup.md](../docs/push-setup.md)。未打包时 App 仍可正常使用，只是提醒只在列表里显示。
+
 ## 首次配置
 
 1. 打开 App →「设置」Tab

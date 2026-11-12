@@ -104,9 +104,13 @@ export async function obtainPushToken(): Promise<PushSetupState> {
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ??
       (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
-    const token = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
+    if (!projectId) {
+      return {
+        kind: 'unsupported',
+        message: '需要 EAS 构建（development build）并配置 projectId 才能推送，见 docs/push-setup.md',
+      };
+    }
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
     return { kind: 'ok', token: token.data };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
