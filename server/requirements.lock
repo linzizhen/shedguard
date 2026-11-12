@@ -1,3 +1,6 @@
+# 本地 Python 3.14 环境 pip freeze 的结果，用于复现开发机验证过的精确版本。
+# 注意：其中部分版本来自本机索引，公开 PyPI 可能不存在（如 numpy==2.5.4）。
+# CI 不使用本文件：CI 按 pyproject.toml 的版本区间 `pip install -e ".[dev]"`。
 alembic==1.20.1
 annotated-doc==0.0.5
 annotated-types==0.8.0

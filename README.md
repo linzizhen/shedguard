@@ -51,7 +51,8 @@ shedguard/
 ```bash
 cd server
 python -m venv .venv && . .venv/Scripts/activate   # Windows
-pip install -r requirements.lock
+pip install -e ".[dev]"          # 按 pyproject 版本区间安装（与 CI 一致）
+# 如需复现本地验证过的精确版本（Python 3.14）：pip install -r requirements.lock
 python -m shedguard_server        # 默认监听 127.0.0.1:8000，启动时自动跑迁移
 ```
 

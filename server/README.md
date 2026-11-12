@@ -25,8 +25,10 @@
 ## 运行
 
 ```powershell
-# 在仓库根目录
-.\.venv\Scripts\python.exe -m pip install -r server\requirements.lock
+# 在仓库根目录（按 pyproject 的版本区间安装，与 CI 一致）
+.\.venv\Scripts\python.exe -m pip install -e "server[dev]"
+
+# 如需复现本地验证过的精确版本（Python 3.14）：pip install -r server\requirements.lock
 
 # 启动服务（默认 127.0.0.1:8000）
 $env:PYTHONPATH = "server\src"
