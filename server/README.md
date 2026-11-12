@@ -37,6 +37,16 @@ $env:PYTHONPATH = "server\src"
 
 服务启动时自动执行 `alembic upgrade head`，无需手工建表。检查存活与就绪：
 
+### 设备模拟器（没有开发板也能跑通上传链路）
+
+```powershell
+# 自建账号/宠物/设备，上传一张蜕皮图，验证「检测 → 判定 → 提醒」
+.\.venv\Scripts\python.exe server\scripts\device_sim.py --pet-name 测试守宫
+
+# 只上传（App 里已绑定好设备与宠物时用）
+.\.venv\Scripts\python.exe server\scripts\device_sim.py --device-id gecko-eye-01 --image <某张.jpg>
+```
+
 ```powershell
 curl.exe http://127.0.0.1:8000/healthz
 curl.exe http://127.0.0.1:8000/readyz
