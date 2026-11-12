@@ -121,9 +121,10 @@ shedguard/
 14. ~~M12 App 接入提醒链路~~ —— 已完成：日志屏删预测卡片、顶部加蜕皮提醒横幅（拉 `GET /api/v1/alerts`，未读红点，点开进详情页看抓拍原图并自动标已读）；`expo-notifications` 注册 token 并 `POST /api/v1/devices`，收到推送即刷新提醒列表；设置屏新增「摄像头与提醒」卡片（设备编号 + 绑定宠物 + 保存并启用通知）。`tsc`/`eslint` 全绿，Expo Web 逐屏截图验证通过
 15. **固件上板联调** —— 手边无实物；上板后验相机出图、白天窗口、SPIFFS 补传，并与服务端真实端点对接
 16. ~~P16 鉴权与多用户隔离~~ —— 已完成（2026-11-12）：匿名账号令牌（`POST /api/v1/users/anonymous` + Bearer，服务端只存 sha256）、`pets.owner_id` 按用户隔离（非本人资源返回 404）、固件上传走 `X-Device-Token`；迁移 0007；App 加 `lib/auth.ts`（401 自动清 token 重注册）与设置页「身份」卡片。353 测试 / 覆盖率 95.81% / ruff+mypy 全绿；在已有历史数据的库上验证过迁移回填（历史宠物归 `legacy`）
-17. **P17 掉线与无检出兜底提醒** —— 当前主线。设备超 N 小时无上传、或连续多帧无有效画面时生成「设备异常」提醒，避免「没提醒 = 没事」的静默误导
+17. ~~P17 掉线与无检出兜底提醒~~ —— 见第 18 项
 18. ~~P17 设备健康兜底提醒~~ —— 已完成（2026-11-12）：新增 `device_silent` / `no_detection` 两类提醒，后台每 10 分钟扫描已注册设备（活跃时段内静默 6 小时、连续 5 次未检出）；`AlertService.create_alert` 通用化并支持按 kind 推送；App 日志横幅与详情页按 kind 显示。365 测试 / 覆盖率 95.94% / ruff+mypy 全绿
-19. **P19 CI 版本验证** —— 下一项：确认 `.github/workflows/ci.yml` 在 Python 3.12/3.13 上能装 `requirements.lock` 并跑通 ruff/mypy/pytest
+19. ~~P19 CI 版本验证~~ —— 已完成（2026-11-12）：根因是 `requirements.lock` 从本地 Python 3.14 freeze 出的合成版本（如 `numpy==2.5.4`）在公开 PyPI 并不存在；CI 改为 `pip install -e ".[dev]"` 按 `pyproject.toml` 区间解析，`requirements.lock` 仅作本地复现记录；已实测 cp312 / cp313 的 linux 轮子齐全（numpy 2.2.6、opencv-python-headless 5.0.0.93、onnxruntime 1.31.1）
+20. **P18 推送真链路** —— 当前主线（需一台真手机）：补 `app/eas.json` 与 `extra.eas.projectId`、做 development build、真机收到真实 Expo 推送；随后 P20 真机自测
 
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
 
