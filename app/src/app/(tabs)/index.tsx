@@ -3,6 +3,7 @@
  * 后端：POST /api/v1/pets/{id}/check-photo（multipart file）。
  */
 import { useMutation } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
@@ -137,12 +138,13 @@ export default function CheckScreen() {
           <EmptyState icon="hourglass" title="加载中…" />
         </Card>
       ) : pets.length === 0 ? (
-        <Card>
+        <Card style={{ gap: 12 }}>
           <EmptyState
             icon="paw"
             title="还没有添加宠物"
-            subtitle="先到「设置」页添加一只宠物，再回来拍照查验"
+            subtitle="先添加一只宠物，再回来拍照查验"
           />
+          <PrimaryButton title="添加宠物" onPress={() => router.push('/pet/new')} />
         </Card>
       ) : (
         <>

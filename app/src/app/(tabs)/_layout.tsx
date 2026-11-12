@@ -30,13 +30,16 @@ export default function TabsLayout() {
           borderTopWidth: 3,
           height: 68,
           paddingTop: 6,
+          paddingHorizontal: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '700',
         },
         tabBarItemStyle: {
+          flex: 1,
           minWidth: 0,
+          maxWidth: '25%',
           paddingHorizontal: 0,
         },
       }}

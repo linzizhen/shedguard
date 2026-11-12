@@ -243,8 +243,9 @@ export default function LogScreen() {
     return (
       <Screen>
         <PageHeader title="蜕皮日志" subtitle="记录每次蜕皮，接收蜕皮提醒" />
-        <Card>
-          <EmptyState icon="paw" title="还没有添加宠物" subtitle="先到「设置」页添加一只宠物" />
+        <Card style={{ gap: 12 }}>
+          <EmptyState icon="paw" title="还没有添加宠物" subtitle="先添加一只宠物，再查看蜕皮日志" />
+          <PrimaryButton title="添加宠物" onPress={() => router.push('/pet/new')} />
         </Card>
       </Screen>
     );
