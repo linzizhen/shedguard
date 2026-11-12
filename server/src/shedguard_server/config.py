@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     auth_enabled: bool = True
     # 固件上传用的静态设备令牌；为空则不校验设备身份并记 WARNING。
     device_token: str = ""
+    # 允许跨域的来源，逗号分隔；"*" 表示全部。为空则不加 CORS 头（生产默认）。
+    # 仅网页版调试/局域网演示时设为 "*"。
+    cors_origins: str = ""
     # 设备健康兜底扫描：离线或连续未检出时生成提醒。
     health_monitor_enabled: bool = True
     health_scan_minutes: int = Field(default=10, ge=1, le=1440)
@@ -116,6 +119,11 @@ class Settings(BaseSettings):
             msg = "db_url 未初始化"
             raise RuntimeError(msg)
         return self.db_url
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """解析后的允许来源列表；空表示不启用 CORS。"""
+        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
     @property
     def tzinfo(self) -> ZoneInfo:

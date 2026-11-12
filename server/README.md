@@ -461,6 +461,7 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_ALERT_COOLDOWN_HOURS` | `24` | 同设备同类提醒的推送冷却（小时，0–168） |
 | `SHEDGUARD_AUTH_ENABLED` | `true` | 是否要求匿名账号令牌；关闭时所有请求以内置 `dev` 用户身份运行 |
 | `SHEDGUARD_DEVICE_TOKEN` | 空 | 固件上传用的共享设备令牌；为空则不校验（记 WARNING） |
+| `SHEDGUARD_CORS_ORIGINS` | 空 | 允许跨域的来源，逗号分隔；`*` 表示全部。为空不加 CORS 头（生产默认）。仅网页版调试时设 `*` |
 | `SHEDGUARD_HEALTH_MONITOR_ENABLED` | `true` | 是否启动设备健康后台扫描 |
 | `SHEDGUARD_HEALTH_SCAN_MINUTES` | `10` | 扫描周期（分钟，1–1440） |
 | `SHEDGUARD_DEVICE_SILENCE_HOURS` | `6` | 活跃时段内多久没上传算静默（1–48） |
