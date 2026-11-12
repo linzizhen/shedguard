@@ -385,7 +385,24 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `CONFLICT` | 409 | 同宠物同开始日已有蜕皮记录 |
 | `STORAGE_UNAVAILABLE` | 503 | 数据目录、数据库或模型文件不可用 |
 | `MODEL_UNAVAILABLE` | 503 | 状态分类模型未配置或加载失败 |
+| `UNAUTHORIZED` | 401 | 缺少、格式错误或无效的访问令牌 / 设备令牌 |
 | `INTERNAL_ERROR` | 500 | 未预期异常 |
+
+## 账号与鉴权
+
+本项目用**匿名账号**隔离数据，不需要注册登录。
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/v1/users/anonymous` | 领取匿名账号，返回 `{"user_id", "token"}`；`token` 只返回这一次 |
+| `GET /api/v1/users/me` | 校验令牌并返回当前账号 |
+
+- 服务端只保存令牌的 `sha256`，明文令牌仅存于客户端。
+- 除 `knowledge` / `risk` / `healthz` 外，业务接口都要求 `Authorization: Bearer <token>`。
+- 访问别人的宠物/日志/提醒统一返回 **404**（不返回 403，避免暴露资源是否存在）。
+- 图片内容接口额外接受 `?token=` 查询参数，供 React Native `<Image>` 使用（它无法附加请求头）。
+- 固件上传走共享设备令牌：请求头 `X-Device-Token`，与 `SHEDGUARD_DEVICE_TOKEN` 比对；该项为空时不校验，仅记 WARNING。
+- 迁移前的历史宠物（`owner_id="legacy"`）不会被任何匿名账号看到。
 
 ## 配置
 
@@ -417,6 +434,8 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_EXPO_PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Expo Push 接口地址 |
 | `SHEDGUARD_PUSH_TIMEOUT_SECONDS` | `5.0` | 单次推送请求超时（秒） |
 | `SHEDGUARD_ALERT_COOLDOWN_HOURS` | `24` | 同设备同类提醒的推送冷却（小时，0–168） |
+| `SHEDGUARD_AUTH_ENABLED` | `true` | 是否要求匿名账号令牌；关闭时所有请求以内置 `dev` 用户身份运行 |
+| `SHEDGUARD_DEVICE_TOKEN` | 空 | 固件上传用的共享设备令牌；为空则不校验（记 WARNING） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 

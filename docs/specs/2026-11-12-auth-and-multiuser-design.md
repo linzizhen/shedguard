@@ -152,3 +152,29 @@
 6. App 首次启动自动注册并可正常建宠物；手动清除 token 后自动重注册。
 7. 覆盖率与 lint/类型检查门槛全部通过。
 8. 文档四处（spec / server README / app README / handoff）与 plan.md 变更记录同步。
+
+## 12. 实现记录（P16，2026-11-12）
+
+落地文件：
+
+| 层 | 文件 |
+|---|---|
+| 领域 | `domain/user.py`（`User`）；`domain/pets.py` 与 `domain/alerts.py` 各加 `owner_id` 字段 |
+| 基础设施 | `infra/auth.py`（`new_token`/`hash_token`）、`UserRepository`、`UserRow`、迁移 `0007_users_and_ownership.py` |
+| 接口 | `api/routes/users.py`（`POST /anonymous`、`GET /me`）；pets/alerts/devices/images 接入鉴权 |
+| 依赖 | `api/dependencies.py` 的 `get_current_user`（`auth_enabled=False` 时返回内置 `dev` 用户） |
+| 配置 | `auth_enabled`（默认 True）、`device_token`（默认空） |
+| 测试 | `tests/unit/test_auth.py`、`tests/integration/test_auth_api.py` |
+
+与规格的偏差（6 条）：
+
+| # | 规格原写 | 实际实现 | 原因 |
+|---|---|---|---|
+| 1 | 迁移用 `batch_alter_table` 两步改 NOT NULL | `add_column(..., nullable=False, server_default="legacy")` 一步完成 | SQLite 上更简单可靠，效果等价 |
+| 2 | 集成测试文件 `test_auth.py` | `test_auth_api.py` | 与单测 `tests/unit/test_auth.py` 同名会触发 pytest 模块导入冲突 |
+| 3 | alerts 通过 `pet_id → pets.owner_id` 判定归属 | 列表过滤 `pet_id IS NULL OR pet_id IN (本人宠物)` | 设备级（未绑定宠物）提醒的 `pet_id` 为空，若只按「本人宠物」过滤会全部丢失 |
+| 4 | 图片接口用 Bearer 头 | 详情接口额外接受 `?token=` 查询参数 | React Native `<Image>` 无法附加请求头，只能把令牌放进 URL |
+| 5 | 未提设备令牌头名 | 头名定为 `X-Device-Token` | 与 `X-Device-Id` 命名一致 |
+| 6 | 未提 App 令牌就绪时序 | 提醒详情页先 `ensureToken()` 再渲染图片 | 否则图片 URL 拼不到 `?token=` |
+
+验收结果：353 测试全部通过、覆盖率 95.81%；`ruff` 与 `mypy src tests`（104 文件）全绿；在**已有历史数据的 M12 数据库**上启动服务，迁移 0007 自动升级成功（readyz 200），历史宠物归 `legacy` 用户、新匿名账号看不到；新建宠物 owner_id 正确落库，两个账号互不可见。App 侧 `tsc`/`eslint` 全绿，430px 截图确认设置页「身份」卡片正常（未连接服务器时显示提示、重置按钮禁用）。
