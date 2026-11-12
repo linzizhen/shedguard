@@ -3,6 +3,7 @@
  * 后端：GET/POST /api/v1/pets/{id}/shed-records、GET /api/v1/alerts。
  */
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useState, type ComponentProps } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -30,9 +31,23 @@ const ALERT_STATE_LABEL: Record<string, string> = {
   unknown: '状态待确认',
 };
 
+const ALERT_KIND_LABEL: Record<string, string> = {
+  shedding_detected: '蜕皮提醒',
+  device_silent: '设备可能离线',
+  no_detection: '看不到守宫',
+};
+
+function alertLabel(alert: AlertItem): string {
+  if (alert.kind !== 'shedding_detected') {
+    return ALERT_KIND_LABEL[alert.kind] ?? '设备提醒';
+  }
+  return ALERT_STATE_LABEL[alert.state] ?? '蜕皮提醒';
+}
+
 function AlertBanner({ alert }: { alert: AlertItem }) {
   const unread = !alert.read_at_utc;
-  const label = ALERT_STATE_LABEL[alert.state] ?? '蜕皮提醒';
+  const label = alertLabel(alert);
+  const hasPhoto = Boolean(alert.image_id);
   return (
     <Pressable
       onPress={() =>
@@ -40,7 +55,8 @@ function AlertBanner({ alert }: { alert: AlertItem }) {
           pathname: '/alert/[id]',
           params: {
             id: alert.id,
-            image_id: alert.image_id,
+            kind: alert.kind,
+            image_id: alert.image_id ?? '',
             state: alert.state,
             local_date: alert.local_date,
             confidence: alert.confidence != null ? String(alert.confidence) : '',
@@ -49,10 +65,13 @@ function AlertBanner({ alert }: { alert: AlertItem }) {
       }
       style={({ pressed }) => [styles.alertCard, pressed && styles.alertPressed]}
     >
-      <Image
-        source={{ uri: imageUrl(alert.image_id) }}
-        style={styles.alertThumb}
-      />
+      {hasPhoto ? (
+        <Image source={{ uri: imageUrl(alert.image_id as string) }} style={styles.alertThumb} />
+      ) : (
+        <View style={[styles.alertThumb, styles.alertThumbIcon]}>
+          <Ionicons name="alert-circle-outline" size={26} color={colors.primary} />
+        </View>
+      )}
       <View style={styles.alertBody}>
         <View style={styles.alertTitleRow}>
           <Text style={styles.alertTitle}>{label}</Text>
@@ -60,9 +79,11 @@ function AlertBanner({ alert }: { alert: AlertItem }) {
         </View>
         <Text style={styles.alertSub}>
           {formatDateCn(alert.local_date)}
-          {alert.confidence != null ? ` · 置信度 ${Math.round(alert.confidence * 100)}%` : ''}
+          {hasPhoto && alert.confidence != null
+            ? ` · 置信度 ${Math.round(alert.confidence * 100)}%`
+            : ''}
         </Text>
-        <Text style={styles.alertHint}>点开查看原图 ›</Text>
+        <Text style={styles.alertHint}>{hasPhoto ? '点开查看原图 ›' : '点开查看详情 ›'}</Text>
       </View>
     </Pressable>
   );
@@ -349,6 +370,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.muted,
   },
+  alertThumbIcon: { alignItems: 'center', justifyContent: 'center' },
   alertBody: { flex: 1, gap: 3 },
   alertTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   alertTitle: { fontSize: 15, fontWeight: '800', color: colors.primaryDark },

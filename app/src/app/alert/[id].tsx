@@ -19,9 +19,16 @@ const STATE_LABEL: Record<string, string> = {
   unknown: '状态待确认',
 };
 
+const KIND_LABEL: Record<string, { title: string; subtitle: string }> = {
+  shedding_detected: { title: '蜕皮提醒', subtitle: '设备自动抓拍的蜕皮提醒' },
+  device_silent: { title: '设备可能离线', subtitle: '长时间没有收到照片' },
+  no_detection: { title: '看不到守宫', subtitle: '连续多张照片没拍到守宫' },
+};
+
 export default function AlertDetailScreen() {
   const params = useLocalSearchParams<{
     id: string;
+    kind?: string;
     image_id?: string;
     state?: string;
     local_date?: string;
@@ -46,11 +53,17 @@ export default function AlertDetailScreen() {
   }, [params.id]);
 
   const confidence = params.confidence ? Number(params.confidence) : null;
-  const label = params.state ? (STATE_LABEL[params.state] ?? '蜕皮提醒') : '蜕皮提醒';
+  const isShedding = !params.kind || params.kind === 'shedding_detected';
+  const kindMeta = KIND_LABEL[params.kind ?? 'shedding_detected'];
+  const label = isShedding
+    ? params.state
+      ? (STATE_LABEL[params.state] ?? '蜕皮提醒')
+      : '蜕皮提醒'
+    : (kindMeta?.title ?? '设备提醒');
 
   return (
     <Screen>
-      <PageHeader title={label} subtitle="设备自动抓拍的蜕皮提醒" />
+      <PageHeader title={kindMeta?.title ?? label} subtitle={kindMeta?.subtitle ?? ''} />
       <Card style={styles.imageCard}>
         {params.image_id && tokenReady ? (
           <Image
@@ -59,7 +72,9 @@ export default function AlertDetailScreen() {
             resizeMode="contain"
           />
         ) : (
-          <Text style={styles.missing}>没有可显示的照片</Text>
+          <Text style={styles.missing}>
+            {params.image_id ? '照片加载中…' : '这条提醒没有照片'}
+          </Text>
         )}
       </Card>
       <Card style={styles.metaCard}>
@@ -69,16 +84,25 @@ export default function AlertDetailScreen() {
             {params.local_date ? formatDateCn(params.local_date) : '—'}
           </Text>
         </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaKey}>判定</Text>
-          <Text style={styles.metaValue}>{label}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaKey}>置信度</Text>
-          <Text style={styles.metaValue}>
-            {confidence != null ? `${Math.round(confidence * 100)}%` : '—'}
-          </Text>
-        </View>
+        {isShedding ? (
+          <>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaKey}>判定</Text>
+              <Text style={styles.metaValue}>{label}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaKey}>置信度</Text>
+              <Text style={styles.metaValue}>
+                {confidence != null ? `${Math.round(confidence * 100)}%` : '—'}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.metaRow}>
+            <Text style={styles.metaKey}>类型</Text>
+            <Text style={styles.metaValue}>{label}</Text>
+          </View>
+        )}
       </Card>
     </Screen>
   );

@@ -34,7 +34,7 @@ npx expo start          # 起开发服务
 | Tab | 功能 | 后端接口 |
 |-----|------|----------|
 | 拍照查验 | 选宠物 → 拍照/相册 → 上传判定蜕皮状态（正常/蒙白/蜕皮中/无法判断），显示置信度、概率分布与护理建议 | `POST /api/v1/pets/{id}/check-photo` |
-| 蜕皮日志 | 宠物切换、顶部蜕皮提醒横幅（设备自动检测到蜕皮时出现，点开看原图）、蜕皮记录时间线、添加/标记完成/删除、卡皮风险评估入口 | `GET /api/v1/alerts`、`GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` |
+| 蜕皮日志 | 宠物切换、顶部提醒横幅（蜕皮 / 设备离线 / 看不到守宫三类，点开看详情）、蜕皮记录时间线、添加/标记完成/删除、卡皮风险评估入口 | `GET /api/v1/alerts`、`GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` |
 | 知识 | 六个话题卡片（速览/环境/喂食/蜕皮基础/卡皮处理/加湿）与详情 | `GET /api/v1/knowledge/topics[/{slug}]` |
 | 设置 | 服务器地址配置与连通性测试、宠物档案管理、设备编号绑定与推送通知启用 | `GET /healthz`、`/api/v1/pets` CRUD、`POST/DELETE /api/v1/devices` |
 | 提醒详情（日志页进入） | 显示抓拍原图、日期、判定与置信度，打开即标记已读 | `GET /api/v1/images/{id}`、`PATCH /api/v1/alerts/{id}` |
