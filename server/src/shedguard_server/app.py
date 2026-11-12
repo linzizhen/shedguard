@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session, sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
@@ -45,6 +47,7 @@ from shedguard_server.infra.detector import OnnxDetector
 from shedguard_server.infra.migrate import run_migrations
 from shedguard_server.infra.push import ExpoPushGateway, SkippedPushGateway
 from shedguard_server.logging_setup import configure_logging, request_id_var
+from shedguard_server.services.health import scan_once
 
 logger = logging.getLogger("shedguard.http")
 
@@ -96,6 +99,24 @@ def _build_push_gateway(settings: Settings) -> PushGateway:
     return ExpoPushGateway(settings.expo_push_url, timeout=settings.push_timeout_seconds)
 
 
+async def _health_loop(
+    session_factory: sessionmaker[Session], settings: Settings, gateway: PushGateway
+) -> None:
+    """周期扫描设备健康；异常只记日志，不让后台任务退出。"""
+    interval = settings.health_scan_minutes * 60
+    while True:
+        try:
+            await asyncio.to_thread(
+                scan_once,
+                session_factory=session_factory,
+                settings=settings,
+                gateway=gateway,
+            )
+        except Exception:  # 后台任务必须自愈
+            logger.exception("设备健康扫描失败")
+        await asyncio.sleep(interval)
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -111,8 +132,20 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
             instance.state.migration_error = exc
             logger.exception("数据库迁移失败")
         logger.info("服务启动 data_dir=%s", settings.data_dir)
-        yield
-        logger.info("服务停止")
+        health_task: asyncio.Task[None] | None = None
+        if settings.health_monitor_enabled:
+            health_task = asyncio.create_task(
+                _health_loop(instance.state.session_factory, settings, instance.state.push_gateway)
+            )
+            instance.state.health_task = health_task
+        try:
+            yield
+        finally:
+            if health_task is not None:
+                health_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await health_task
+            logger.info("服务停止")
 
     app = FastAPI(title="shedguard-server", version=__version__, lifespan=lifespan)
     app.state.settings = settings

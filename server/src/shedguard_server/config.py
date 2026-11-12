@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     auth_enabled: bool = True
     # 固件上传用的静态设备令牌；为空则不校验设备身份并记 WARNING。
     device_token: str = ""
+    # 设备健康兜底扫描：离线或连续未检出时生成提醒。
+    health_monitor_enabled: bool = True
+    health_scan_minutes: int = Field(default=10, ge=1, le=1440)
+    device_silence_hours: int = Field(default=6, ge=1, le=48)
+    no_detection_streak: int = Field(default=5, ge=2, le=20)
+    # 设备的活跃抓拍时段；静默提醒只在这个时段内判定。
+    capture_start_hour: int = Field(default=8, ge=0, le=23)
+    capture_end_hour: int = Field(default=20, ge=0, le=23)
 
     @field_validator("timezone")
     @classmethod

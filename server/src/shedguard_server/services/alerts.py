@@ -6,6 +6,8 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 from shedguard_server.domain.alerts import (
+    ALERT_KIND_DEVICE_SILENT,
+    ALERT_KIND_NO_DETECTION,
     ALERT_KIND_SHEDDING,
     PUSH_FAILED,
     PUSH_PENDING,
@@ -21,6 +23,13 @@ DEFAULT_COOLDOWN_HOURS = 24
 
 ALERT_TITLE = "守宫正在蜕皮"
 ALERT_BODY = "检测到蜕皮白皮，请打开照片查看。"
+
+#: 每类提醒的推送标题与正文（正文可按 detail 覆盖）。
+MESSAGES: dict[str, tuple[str, str]] = {
+    ALERT_KIND_SHEDDING: (ALERT_TITLE, ALERT_BODY),
+    ALERT_KIND_DEVICE_SILENT: ("设备可能离线", "已经很久没收到照片，请检查电源与网络。"),
+    ALERT_KIND_NO_DETECTION: ("看不到守宫", "连续多张照片没拍到守宫，请调整机位。"),
+}
 
 
 class AlertService:
@@ -39,6 +48,38 @@ class AlertService:
         self._gateway = gateway
         self._cooldown_hours = cooldown_hours
 
+    def create_alert(
+        self,
+        *,
+        device_id: str,
+        local_date: date,
+        kind: str,
+        state: str = "",
+        image_id: str | None = None,
+        confidence: float | None = None,
+        pet_id: str | None = None,
+        now: datetime | None = None,
+    ) -> Alert | None:
+        """按 (device_id, local_date, kind) 去重后创建一条提醒。"""
+        if self._alerts.find(device_id, local_date, kind) is not None:
+            return None
+        created_at = now or datetime.now(UTC)
+        alert = Alert(
+            id=str(uuid4()),
+            device_id=device_id,
+            pet_id=pet_id,
+            kind=kind,
+            local_date=local_date,
+            state=state,
+            image_id=image_id,
+            confidence=confidence,
+            created_at_utc=created_at,
+            delivered_at_utc=None,
+            push_status=PUSH_PENDING,
+        )
+        self._alerts.add(alert)
+        return alert
+
     def create_for_transition(
         self,
         *,
@@ -53,24 +94,16 @@ class AlertService:
         """仅当状态是「蜕皮中」且当天尚无同类提醒时创建；否则返回 None。"""
         if state != SHEDDING_STATE:
             return None
-        if self._alerts.find(device_id, local_date, ALERT_KIND_SHEDDING) is not None:
-            return None
-        created_at = now or datetime.now(UTC)
-        alert = Alert(
-            id=str(uuid4()),
+        return self.create_alert(
             device_id=device_id,
-            pet_id=pet_id,
-            kind=ALERT_KIND_SHEDDING,
             local_date=local_date,
+            kind=ALERT_KIND_SHEDDING,
             state=state,
             image_id=image_id,
             confidence=confidence,
-            created_at_utc=created_at,
-            delivered_at_utc=None,
-            push_status=PUSH_PENDING,
+            pet_id=pet_id,
+            now=now,
         )
-        self._alerts.add(alert)
-        return alert
 
     def deliver(self, alert: Alert, *, now: datetime | None = None) -> Alert:
         """把提醒推给该设备/宠物绑定的所有推送目标，并回写投递状态。"""
@@ -86,13 +119,14 @@ class AlertService:
             return self._mark(alert, PUSH_SKIPPED, delivered_at=None)
 
         message_data = self._message_data(alert)
+        title, body = MESSAGES.get(alert.kind, (ALERT_TITLE, ALERT_BODY))
         any_sent = False
         any_attempt_failed = False
         for target in targets:
             message = PushMessage(
                 to=target.expo_push_token,
-                title=ALERT_TITLE,
-                body=ALERT_BODY,
+                title=title,
+                body=body,
                 data=message_data,
             )
             outcome = self._gateway.send(message)

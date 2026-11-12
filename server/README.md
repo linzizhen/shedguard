@@ -366,6 +366,19 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 
 提醒规则与去重：唯一键 `(device_id, local_date, kind=shedding_detected)`，同设备同一天只建一条；`SHEDGUARD_ALERT_COOLDOWN_HOURS`（默认 24）内的已投递提醒会跳过重复推送。推送状态 `push_status` 取值 `pending / sent / failed / skipped`；`DeviceNotRegistered` 会清理失效 token。推送关闭（`SHEDGUARD_PUSH_ENABLED=false`）时提醒仍入库，仅 `push_status=skipped`。
 
+### 设备健康兜底提醒
+
+除了「检测到蜕皮」，服务端还会主动发现两类沉默故障，避免「没提醒 = 没事」的误判：
+
+| kind | 触发条件 | 推送标题 |
+|---|---|---|
+| `device_silent` | 活跃时段（默认 08:00–20:00）内超过 `SHEDGUARD_DEVICE_SILENCE_HOURS`（默认 6）小时没有新上传 | 设备可能离线 |
+| `no_detection` | 同一设备连续 `SHEDGUARD_NO_DETECTION_STREAK`（默认 5）次上传都没检出守宫 | 看不到守宫 |
+
+- 后台任务每 `SHEDGUARD_HEALTH_SCAN_MINUTES`（默认 10）分钟扫描一次已注册设备；`SHEDGUARD_HEALTH_MONITOR_ENABLED=false` 可关闭。
+- 从未上传过的设备不判静默（避免设备还没配置就报警）；夜间不判静默。
+- 同一设备同一天同一类提醒只建一条（唯一键去重）。
+
 ### App 接口错误码补充
 
 | 码 | 状态 | 触发场景 |
@@ -436,6 +449,12 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_ALERT_COOLDOWN_HOURS` | `24` | 同设备同类提醒的推送冷却（小时，0–168） |
 | `SHEDGUARD_AUTH_ENABLED` | `true` | 是否要求匿名账号令牌；关闭时所有请求以内置 `dev` 用户身份运行 |
 | `SHEDGUARD_DEVICE_TOKEN` | 空 | 固件上传用的共享设备令牌；为空则不校验（记 WARNING） |
+| `SHEDGUARD_HEALTH_MONITOR_ENABLED` | `true` | 是否启动设备健康后台扫描 |
+| `SHEDGUARD_HEALTH_SCAN_MINUTES` | `10` | 扫描周期（分钟，1–1440） |
+| `SHEDGUARD_DEVICE_SILENCE_HOURS` | `6` | 活跃时段内多久没上传算静默（1–48） |
+| `SHEDGUARD_NO_DETECTION_STREAK` | `5` | 连续多少次未检出守宫算异常（2–20） |
+| `SHEDGUARD_CAPTURE_START_HOUR` | `8` | 活跃时段起始整点（0–23） |
+| `SHEDGUARD_CAPTURE_END_HOUR` | `20` | 活跃时段结束整点（0–23） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 

@@ -83,6 +83,15 @@ class ImageRepository:
         self._session.add(_to_row(record))
         self._session.commit()
 
+    def latest_captured_at(self, device_id: str) -> datetime | None:
+        """该设备最近一张图的拍摄时间；没有则返回 None。"""
+        raw = self._session.scalar(
+            select(func.max(ImageRow.captured_at_utc)).where(
+                ImageRow.device_id == device_id
+            )
+        )
+        return _parse_utc(raw) if raw else None
+
     def list_for_date(
         self,
         local_date: str,
@@ -374,6 +383,16 @@ class SheddingStateRepository:
             .order_by(SheddingStateRow.local_date, SheddingStateRow.image_id)
         ).all()
         return [_to_shedding_state(row) for row in rows]
+
+    def recent_detections(self, device_id: str, limit: int) -> tuple[bool, ...]:
+        """最近若干次判定的「是否检出守宫」，新→旧；box 为空视为未检出。"""
+        rows = self._session.scalars(
+            select(SheddingStateRow)
+            .where(SheddingStateRow.device_id == device_id)
+            .order_by(SheddingStateRow.local_date.desc(), SheddingStateRow.image_id.desc())
+            .limit(limit)
+        ).all()
+        return tuple(row.box_json is not None for row in rows)
 
 
 def _to_pet(row: PetRow) -> Pet:
@@ -755,6 +774,15 @@ class PushDeviceRepository:
             .order_by(PushDeviceRow.created_at_utc)
         ).all()
         return [_to_push_device(row) for row in rows]
+
+    def list_device_ids(self) -> list[str]:
+        """所有注册过的设备号（去重、非空），供健康扫描遍历。"""
+        rows = self._session.scalars(
+            select(PushDeviceRow.device_id)
+            .where(PushDeviceRow.device_id.is_not(None))
+            .distinct()
+        ).all()
+        return [value for value in rows if value]
 
     def pet_for_device(self, device_id: str) -> str | None:
         """取绑定到该设备号的第一个宠物；用于给提醒补 `pet_id`。"""

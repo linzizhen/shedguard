@@ -8,8 +8,12 @@ from datetime import date, datetime
 #: 触发提醒的蜕皮状态。
 SHEDDING_STATE = "shedding"
 
-#: 目前唯一的提醒类型：检测到开始蜕皮。
+#: 提醒类型：检测到开始蜕皮。
 ALERT_KIND_SHEDDING = "shedding_detected"
+#: 提醒类型：设备在活跃时段内长时间没有上传。
+ALERT_KIND_DEVICE_SILENT = "device_silent"
+#: 提醒类型：连续多张照片都没有检出守宫。
+ALERT_KIND_NO_DETECTION = "no_detection"
 
 #: 推送状态取值。
 PUSH_PENDING = "pending"
