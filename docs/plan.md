@@ -153,6 +153,7 @@ shedguard 是一个爬宠蜕皮监测系统：饲养箱摄像头定时抓拍 →
 | 2026-11-12 | P19 CI 修复：根因是 lock 指向本地合成的非公开版本；CI 改 `pip install -e ".[dev]"`，lock 保留为本地 3.14 复现 | 让 CI 真正可跑，退化为区间解析 | `.github/workflows/ci.yml` |
 | 2026-11-12 | P18 仓库侧就绪：`app/eas.json` 三 profile、`expo-dev-client`、`expo-build-properties` 开 Android 明文流量、`docs/push-setup.md` 手把手手册；获取 token 前先校验 projectId | 真机推送无法在没有 Expo 账号的机器上完成，代码先备齐 | `docs/push-setup.md` |
 | 2026-11-12 | 设备绑定与推送解耦：`POST /api/v1/devices` 允许空 token；投递时跳过空 token（记 `skipped`）；App 拿不到推送 token 时仍绑定设备与宠物，提醒进日志列表 | 让未打包的 Expo Go 也能完整验证「上传→判定→提醒→看图」，无需先做 EAS 构建 | 服务端 367 测试 / 95.9%；`server/scripts/device_sim.py` 可模拟设备 |
+| 2026-11-12 | 网页版预览支持：服务端新增 `SHEDGUARD_CORS_ORIGINS`（默认空，调试设 `*`）；App 支持 `EXPO_PUBLIC_SERVER_URL` 预填地址 | 无 GMS 的国产安卓机装不了 Expo Go，网页版是最低门槛的预览方式 | 370 测试全绿；`app/README.md` 调试与预览一节 |
 
 ---
 
