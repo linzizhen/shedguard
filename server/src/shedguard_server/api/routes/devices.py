@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
 class DeviceRegister(BaseModel):
     """App 上报推送 token 的请求体。"""
 
-    expo_push_token: str = Field(min_length=1, max_length=255)
+    expo_push_token: str = Field(default="", max_length=255)
     platform: Literal["ios", "android", "web"]
     device_id: str | None = Field(default=None, max_length=64)
     pet_id: str | None = Field(default=None, max_length=36)

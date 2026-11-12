@@ -73,6 +73,15 @@ class TestDevices:
         )
         assert response.status_code == 400
 
+    def test_register_without_push_token_binds_device(self, client: TestClient) -> None:
+        """没开系统通知也要能绑定设备与宠物（提醒进列表、不弹通知）。"""
+        response = client.post(
+            "/api/v1/devices",
+            json={"platform": "android", "device_id": "dev-x"},
+        )
+        assert response.status_code == 201
+        assert response.json()["expo_push_token"] == ""
+
 
 class TestAlertsQuery:
     def test_empty_list(self, client: TestClient) -> None:

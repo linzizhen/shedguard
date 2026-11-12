@@ -123,6 +123,9 @@ class AlertService:
         any_sent = False
         any_attempt_failed = False
         for target in targets:
+            if not target.expo_push_token:
+                # 只绑定设备、没开启系统通知（Expo Go / 未打包）时跳过推送。
+                continue
             message = PushMessage(
                 to=target.expo_push_token,
                 title=title,

@@ -191,6 +191,24 @@ class TestDeliver:
         assert delivered.push_status == PUSH_SKIPPED
         assert delivered.delivered_at_utc is None
 
+    def test_skips_targets_without_token(self) -> None:
+        # 只绑定设备、没开系统通知（空 token）：不推送，也不记为失败。
+        devices = FakeDeviceRepository([make_device(token="")])
+        gateway = FakeGateway(PushStatus.SENT)
+        service = make_service(devices=devices, gateway=gateway)
+        alert = service.create_for_transition(
+            device_id="device-1",
+            local_date=date(2026, 11, 11),
+            state="shedding",
+            image_id="img1",
+            confidence=0.9,
+            now=NOW,
+        )
+        assert alert is not None
+        delivered = service.deliver(alert, now=NOW)
+        assert delivered.push_status == PUSH_SKIPPED
+        assert gateway.sent == []
+
     def test_sends_to_registered_device(self) -> None:
         devices = FakeDeviceRepository([make_device()])
         gateway = FakeGateway(PushStatus.SENT)
