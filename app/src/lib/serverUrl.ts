@@ -9,6 +9,9 @@ import { useSyncExternalStore } from 'react';
 
 const KEY = 'shedguard.server-url';
 
+/** 开发/演示用：可用 EXPO_PUBLIC_SERVER_URL 预填地址，正式包留空由用户填写。 */
+const DEV_DEFAULT = process.env.EXPO_PUBLIC_SERVER_URL ?? '';
+
 let current = '';
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -25,7 +28,7 @@ export function getServerUrl(): string {
 /** App 启动时调用一次，从 AsyncStorage 恢复 */
 export async function loadServerUrl(): Promise<void> {
   if (loaded) return;
-  current = (await AsyncStorage.getItem(KEY)) ?? '';
+  current = (await AsyncStorage.getItem(KEY)) ?? DEV_DEFAULT;
   loaded = true;
   emit();
 }

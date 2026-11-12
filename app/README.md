@@ -103,6 +103,12 @@ npx eslint .       # 代码检查
 | `GET /api/v1/knowledge/topics`、`/topics/{slug}` | 知识库 | 已接 |
 | `POST /api/v1/risk-assessment` | 卡皮风险评估 | 已接 |
 
+## 调试与预览
+
+- **网页版预览**：`npx expo start --web`，浏览器打开 Metro 地址即可（手机浏览器同网段也能开）。服务端需设 `SHEDGUARD_CORS_ORIGINS=*` 才允许跨域。
+- **预填服务器地址**：开发时可用环境变量 `EXPO_PUBLIC_SERVER_URL=http://<电脑局域网IP>:8000 npx expo start`，App 首次启动会自动填入该地址，省去手输；正式包该变量留空。
+- **Expo Go**：需要 Google 服务的安卓机或 iPhone；国内无 GMS 的机型（如部分荣耀/华为）商店可能没有，此时用网页版预览。
+
 ## 已知限制
 
 - 账号：本机匿名令牌（Bearer），宠物按账号隔离；换机或清数据会丢失账号，历史宠物看不到
