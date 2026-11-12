@@ -17,6 +17,7 @@ from shedguard_server.domain.models import (
     ShedEvent,
 )
 from shedguard_server.domain.pets import Pet, ShedRecord
+from shedguard_server.domain.user import User
 from shedguard_server.infra.tables import (
     AlertRow,
     FrameMetricRow,
@@ -26,7 +27,11 @@ from shedguard_server.infra.tables import (
     SheddingStateRow,
     ShedEventRow,
     ShedRecordRow,
+    UserRow,
 )
+
+#: 迁移前历史宠物的归属占位账号；新数据一律写真实 owner_id。
+LEGACY_OWNER_ID = "legacy"
 
 
 def _parse_utc(value: str) -> datetime:
@@ -380,6 +385,7 @@ def _to_pet(row: PetRow) -> Pet:
         birth_date=date.fromisoformat(row.birth_date) if row.birth_date else None,
         created_at_utc=_parse_utc(row.created_at_utc),
         updated_at_utc=_parse_utc(row.updated_at_utc),
+        owner_id=row.owner_id,
     )
 
 
@@ -392,21 +398,77 @@ def _to_pet_row(pet: Pet) -> PetRow:
         birth_date=pet.birth_date.isoformat() if pet.birth_date else None,
         created_at_utc=pet.created_at_utc.isoformat(),
         updated_at_utc=pet.updated_at_utc.isoformat(),
+        owner_id=pet.owner_id or LEGACY_OWNER_ID,
     )
 
 
-class PetRepository:
-    """pets 表的读写。"""
+def _to_user(row: UserRow) -> User:
+    return User(
+        id=row.id,
+        created_at_utc=_parse_utc(row.created_at_utc),
+        last_seen_at_utc=_parse_utc(row.last_seen_at_utc) if row.last_seen_at_utc else None,
+    )
+
+
+def _to_user_row(user: User) -> UserRow:
+    return UserRow(
+        id=user.id,
+        token_hash="",
+        created_at_utc=user.created_at_utc.isoformat(),
+        last_seen_at_utc=user.last_seen_at_utc.isoformat() if user.last_seen_at_utc else None,
+    )
+
+
+class UserRepository:
+    """users 表的读写；按令牌摘要查找用户。"""
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def find(self, pet_id: str) -> Pet | None:
-        row = self._session.get(PetRow, pet_id)
-        return _to_pet(row) if row is not None else None
+    def find_by_token_hash(self, token_hash: str) -> User | None:
+        if not token_hash:
+            return None
+        row = self._session.scalar(
+            select(UserRow).where(UserRow.token_hash == token_hash)
+        )
+        return _to_user(row) if row is not None else None
 
-    def list(self) -> list[Pet]:
-        rows = self._session.scalars(select(PetRow).order_by(PetRow.created_at_utc)).all()
+    def get(self, user_id: str) -> User | None:
+        row = self._session.get(UserRow, user_id)
+        return _to_user(row) if row is not None else None
+
+    def add(self, user: User, token_hash: str) -> None:
+        row = _to_user_row(user)
+        row.token_hash = token_hash
+        self._session.add(row)
+        self._session.commit()
+
+    def touch(self, user: User, *, at: datetime) -> None:
+        row = self._session.get(UserRow, user.id)
+        if row is not None:
+            row.last_seen_at_utc = at.isoformat()
+            self._session.commit()
+
+
+class PetRepository:
+    """pets 表的读写；按 owner 隔离。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, pet_id: str, owner_id: str | None = None) -> Pet | None:
+        row = self._session.get(PetRow, pet_id)
+        if row is None:
+            return None
+        if owner_id is not None and row.owner_id != owner_id:
+            return None
+        return _to_pet(row)
+
+    def list(self, owner_id: str | None = None) -> list[Pet]:
+        statement = select(PetRow)
+        if owner_id is not None:
+            statement = statement.where(PetRow.owner_id == owner_id)
+        rows = self._session.scalars(statement.order_by(PetRow.created_at_utc)).all()
         return [_to_pet(row) for row in rows]
 
     def add(self, pet: Pet) -> None:
@@ -572,6 +634,7 @@ class AlertRepository:
         *,
         device_id: str | None = None,
         pet_id: str | None = None,
+        owner_id: str | None = None,
         limit: int = 50,
     ) -> list[Alert]:
         conditions: list[ColumnElement[bool]] = []
@@ -579,6 +642,12 @@ class AlertRepository:
             conditions.append(AlertRow.device_id == device_id)
         if pet_id is not None:
             conditions.append(AlertRow.pet_id == pet_id)
+        if owner_id is not None:
+            owned = select(PetRow.id).where(PetRow.owner_id == owner_id)
+            # 未绑定宠物的设备级提醒（pet_id 为空）对所有人可见。
+            conditions.append(
+                or_(AlertRow.pet_id.is_(None), AlertRow.pet_id.in_(owned))
+            )
         rows = self._session.scalars(
             select(AlertRow)
             .where(*conditions)
@@ -614,6 +683,7 @@ def _to_push_device(row: PushDeviceRow) -> PushDevice:
         platform=row.platform,
         created_at_utc=_parse_utc(row.created_at_utc),
         updated_at_utc=_parse_utc(row.updated_at_utc),
+        owner_id=row.owner_id,
     )
 
 
@@ -626,6 +696,7 @@ def _to_push_device_row(device: PushDevice) -> PushDeviceRow:
         platform=device.platform,
         created_at_utc=device.created_at_utc.isoformat(),
         updated_at_utc=device.updated_at_utc.isoformat(),
+        owner_id=device.owner_id,
     )
 
 
@@ -661,6 +732,8 @@ class PushDeviceRepository:
         row.pet_id = device.pet_id
         row.platform = device.platform
         row.updated_at_utc = device.updated_at_utc.isoformat()
+        if device.owner_id is not None:
+            row.owner_id = device.owner_id
         self._session.commit()
         self._session.refresh(row)
         return _to_push_device(row)

@@ -10,8 +10,12 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from shedguard_server.api.dependencies import get_push_device_repository
+from shedguard_server.api.dependencies import (
+    get_current_user,
+    get_push_device_repository,
+)
 from shedguard_server.domain.alerts import PushDevice
+from shedguard_server.domain.user import User
 from shedguard_server.errors import NotFoundError
 from shedguard_server.infra.repository import PushDeviceRepository
 
@@ -43,6 +47,7 @@ def serialize_device(device: PushDevice) -> dict[str, Any]:
 def register_device(
     body: DeviceRegister,
     repository: Annotated[PushDeviceRepository, Depends(get_push_device_repository)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> JSONResponse:
     now = datetime.now(UTC)
     device = PushDevice(
@@ -53,6 +58,7 @@ def register_device(
         platform=body.platform,
         created_at_utc=now,
         updated_at_utc=now,
+        owner_id=user.id,
     )
     saved = repository.upsert(device)
     return JSONResponse(serialize_device(saved), status_code=201)
@@ -62,6 +68,9 @@ def register_device(
 def delete_device(
     device_pk: str,
     repository: Annotated[PushDeviceRepository, Depends(get_push_device_repository)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    if not repository.delete(device_pk):
+    device = repository.get(device_pk)
+    if device is None or (device.owner_id is not None and device.owner_id != user.id):
         raise NotFoundError(f"设备不存在: {device_pk}")
+    repository.delete(device_pk)

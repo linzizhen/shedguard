@@ -11,10 +11,12 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from shedguard_server.api.dependencies import (
+    get_current_user,
     get_detector,
     get_settings,
     get_state_classifier,
     get_storage,
+    get_user_repository,
 )
 from shedguard_server.api.dependencies import (
     get_image_repository as get_repository,
@@ -24,8 +26,15 @@ from shedguard_server.domain.detection import Detector
 from shedguard_server.domain.models import ImageRecord
 from shedguard_server.domain.push import PushGateway
 from shedguard_server.domain.shedding import StateClassifier
-from shedguard_server.errors import InvalidRequestError, NotFoundError, PayloadTooLargeError
-from shedguard_server.infra.repository import ImageRepository
+from shedguard_server.domain.user import User
+from shedguard_server.errors import (
+    InvalidRequestError,
+    NotFoundError,
+    PayloadTooLargeError,
+    UnauthorizedError,
+)
+from shedguard_server.infra.auth import hash_token
+from shedguard_server.infra.repository import ImageRepository, UserRepository
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.ingest import IngestService
 from shedguard_server.services.processing import process_image
@@ -96,6 +105,10 @@ async def upload_image(
     storage: Annotated[LocalStorage, Depends(get_storage)],
 ) -> JSONResponse:
     payload = await _read_payload(request, settings.max_upload_bytes)
+    if settings.device_token:
+        supplied = request.headers.get("x-device-token", "")
+        if supplied != settings.device_token:
+            raise UnauthorizedError("设备令牌无效")
     outcome = await run_in_threadpool(
         service.ingest,
         payload,
@@ -122,6 +135,7 @@ async def upload_image(
 def list_images(
     repository: Annotated[ImageRepository, Depends(get_repository)],
     settings: Annotated[Settings, Depends(get_settings)],
+    _user: Annotated[User, Depends(get_current_user)],
     day: Annotated[str | None, Query(alias="date")] = None,
     device_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
@@ -152,6 +166,7 @@ def list_images(
 def get_image_metadata(
     image_id: str,
     repository: Annotated[ImageRepository, Depends(get_repository)],
+    _user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
     record = repository.find_by_id(image_id)
     if record is None:
@@ -162,9 +177,20 @@ def get_image_metadata(
 @router.get("/{image_id}")
 def get_image(
     image_id: str,
+    request: Request,
     repository: Annotated[ImageRepository, Depends(get_repository)],
     storage: Annotated[LocalStorage, Depends(get_storage)],
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
+    # <Image> 组件无法自定义请求头，所以图片读取允许用查询参数传令牌。
+    if settings.auth_enabled:
+        raw = request.query_params.get("token", "")
+        if not raw:
+            scheme, _, credential = request.headers.get("authorization", "").partition(" ")
+            raw = credential.strip() if scheme.lower() == "bearer" else ""
+        if not raw or users.find_by_token_hash(hash_token(raw)) is None:
+            raise UnauthorizedError("需要访问令牌")
     record = repository.find_by_id(image_id)
     if record is None:
         raise NotFoundError(f"图片不存在: {image_id}")

@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from shedguard_server.api.dependencies import (
+    get_current_user,
     get_pet_repository,
     get_settings,
     get_shed_record_repository,
@@ -18,6 +19,7 @@ from shedguard_server.api.dependencies import (
 from shedguard_server.api.params import parse_day
 from shedguard_server.config import Settings
 from shedguard_server.domain.pets import Pet, ShedRecord
+from shedguard_server.domain.user import User
 from shedguard_server.errors import InvalidRequestError, PayloadTooLargeError
 from shedguard_server.infra.repository import PetRepository, ShedRecordRepository
 from shedguard_server.services.ingest import IngestService
@@ -115,20 +117,23 @@ def serialize_record(record: ShedRecord) -> dict[str, Any]:
 @router.get("")
 def list_pets(
     service: Annotated[PetService, Depends(get_pet_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    return {"items": [serialize_pet(pet) for pet in service.list()]}
+    return {"items": [serialize_pet(pet) for pet in service.list(owner_id=user.id)]}
 
 
 @router.post("", status_code=201)
 def create_pet(
     body: PetCreate,
     service: Annotated[PetService, Depends(get_pet_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> JSONResponse:
     pet = service.create(
         name=body.name,
         species=body.species,
         morph=body.morph,
         birth_date=body.birth_date,
+        owner_id=user.id,
     )
     return JSONResponse(serialize_pet(pet), status_code=201)
 
@@ -137,8 +142,9 @@ def create_pet(
 def get_pet(
     pet_id: str,
     service: Annotated[PetService, Depends(get_pet_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    return serialize_pet(service.get(pet_id))
+    return serialize_pet(service.get(pet_id, owner_id=user.id))
 
 
 @router.put("/{pet_id}")
@@ -146,6 +152,7 @@ def update_pet(
     pet_id: str,
     body: PetUpdate,
     service: Annotated[PetService, Depends(get_pet_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
     pet = service.update(
         pet_id,
@@ -153,6 +160,7 @@ def update_pet(
         species=body.species,
         morph=body.morph,
         birth_date=body.birth_date,
+        owner_id=user.id,
     )
     return serialize_pet(pet)
 
@@ -161,16 +169,22 @@ def update_pet(
 def delete_pet(
     pet_id: str,
     service: Annotated[PetService, Depends(get_pet_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    service.delete(pet_id)
+    service.delete(pet_id, owner_id=user.id)
 
 
 @router.get("/{pet_id}/shed-records")
 def list_shed_records(
     pet_id: str,
     service: Annotated[ShedRecordService, Depends(get_shed_record_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    return {"items": [serialize_record(r) for r in service.list_for_pet(pet_id)]}
+    return {
+        "items": [
+            serialize_record(r) for r in service.list_for_pet(pet_id, owner_id=user.id)
+        ]
+    }
 
 
 @router.post("/{pet_id}/shed-records", status_code=201)
@@ -178,12 +192,14 @@ def create_shed_record(
     pet_id: str,
     body: ShedRecordCreate,
     service: Annotated[ShedRecordService, Depends(get_shed_record_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> JSONResponse:
     record = service.create(
         pet_id,
         started_on=body.started_on,
         completed_on=body.completed_on,
         notes=body.notes,
+        owner_id=user.id,
     )
     return JSONResponse(serialize_record(record), status_code=201)
 
@@ -194,6 +210,7 @@ def update_shed_record(
     record_id: str,
     body: ShedRecordUpdate,
     service: Annotated[ShedRecordService, Depends(get_shed_record_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
     record = service.update(
         pet_id,
@@ -201,6 +218,7 @@ def update_shed_record(
         started_on=body.started_on,
         completed_on=body.completed_on,
         notes=body.notes,
+        owner_id=user.id,
     )
     return serialize_record(record)
 
@@ -210,18 +228,20 @@ def delete_shed_record(
     pet_id: str,
     record_id: str,
     service: Annotated[ShedRecordService, Depends(get_shed_record_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    service.delete(pet_id, record_id)
+    service.delete(pet_id, record_id, owner_id=user.id)
 
 
 @router.get("/{pet_id}/shed-prediction")
 def get_shed_prediction(
     pet_id: str,
     service: Annotated[ShedRecordService, Depends(get_shed_record_service)],
+    user: Annotated[User, Depends(get_current_user)],
     today: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     target = parse_day(today, "today") if today else datetime.now().date()
-    prediction = service.predict(pet_id, today=target)
+    prediction = service.predict(pet_id, today=target, owner_id=user.id)
     return {
         "predictable": prediction.predictable,
         "reason": prediction.reason,
@@ -243,6 +263,7 @@ async def check_photo(
     request: Request,
     service: Annotated[CheckPhotoService, Depends(get_check_photo_service)],
     settings: Annotated[Settings, Depends(get_settings)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> JSONResponse:
     """上传一张守宫照片，返回蜕皮状态判断与照护建议。"""
     declared = request.headers.get("content-length")
@@ -270,7 +291,7 @@ async def check_photo(
         payload = await request.body()
     if not payload:
         raise InvalidRequestError("图片内容为空")
-    result = await run_in_threadpool(service.check, pet_id, payload)
+    result = await run_in_threadpool(service.check, pet_id, payload, owner_id=user.id)
     probabilities = (
         {k: round(v, 4) for k, v in result.probabilities.items()}
         if result.probabilities

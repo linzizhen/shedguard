@@ -25,6 +25,7 @@ from shedguard_server.api.routes import (
     risk,
     series,
     shedding,
+    users,
 )
 from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector, NullDetector
@@ -168,4 +169,5 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(risk.router)
     app.include_router(devices.router)
     app.include_router(alerts.router)
+    app.include_router(users.router)
     return app

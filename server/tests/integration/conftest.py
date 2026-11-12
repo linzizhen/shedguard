@@ -23,6 +23,7 @@ def settings(workdir: Path) -> Settings:
         log_level="INFO",
         log_format="json",
         max_upload_bytes=1024,
+        auth_enabled=False,
     )
 
 

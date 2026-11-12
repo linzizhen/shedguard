@@ -17,6 +17,7 @@ class Pet:
     birth_date: date | None
     created_at_utc: datetime
     updated_at_utc: datetime
+    owner_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

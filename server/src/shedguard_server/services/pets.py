@@ -136,11 +136,11 @@ class PetService:
             raise InvalidRequestError(f"宠物名字不能超过 {MAX_NAME_LENGTH} 个字符")
         return stripped
 
-    def list(self) -> list[Pet]:
-        return self._pets.list()
+    def list(self, *, owner_id: str | None = None) -> list[Pet]:
+        return self._pets.list(owner_id)
 
-    def get(self, pet_id: str) -> Pet:
-        pet = self._pets.find(pet_id)
+    def get(self, pet_id: str, *, owner_id: str | None = None) -> Pet:
+        pet = self._pets.find(pet_id, owner_id)
         if pet is None:
             raise NotFoundError(f"宠物不存在: {pet_id}")
         return pet
@@ -152,9 +152,10 @@ class PetService:
         species: str = "豹纹守宫",
         morph: str | None = None,
         birth_date: date | None = None,
+        owner_id: str | None = None,
     ) -> Pet:
         valid_name = self._validate_name(name)
-        if len(self._pets.list()) >= MAX_PETS:
+        if len(self._pets.list(owner_id)) >= MAX_PETS:
             raise InvalidRequestError(f"宠物数量已达上限 {MAX_PETS}")
         now = datetime.now(UTC)
         pet = Pet(
@@ -165,6 +166,7 @@ class PetService:
             birth_date=birth_date,
             created_at_utc=now,
             updated_at_utc=now,
+            owner_id=owner_id,
         )
         self._pets.add(pet)
         return pet
@@ -177,8 +179,9 @@ class PetService:
         species: str | None = None,
         morph: str | None = None,
         birth_date: date | None = None,
+        owner_id: str | None = None,
     ) -> Pet:
-        pet = self.get(pet_id)
+        pet = self.get(pet_id, owner_id=owner_id)
         new_name = self._validate_name(name) if name is not None else pet.name
         new_species = pet.species
         if species is not None and species.strip():
@@ -202,12 +205,13 @@ class PetService:
             birth_date=new_birth,
             created_at_utc=pet.created_at_utc,
             updated_at_utc=datetime.now(UTC),
+            owner_id=pet.owner_id,
         )
         self._pets.update(updated)
         return updated
 
-    def delete(self, pet_id: str) -> None:
-        pet = self.get(pet_id)
+    def delete(self, pet_id: str, *, owner_id: str | None = None) -> None:
+        pet = self.get(pet_id, owner_id=owner_id)
         self._records.delete_for_pet(pet.id)
         self._pets.delete(pet.id)
 
@@ -219,14 +223,14 @@ class ShedRecordService:
         self._pets = pets
         self._records = records
 
-    def _get_pet(self, pet_id: str) -> Pet:
-        pet = self._pets.find(pet_id)
+    def _get_pet(self, pet_id: str, *, owner_id: str | None = None) -> Pet:
+        pet = self._pets.find(pet_id, owner_id)
         if pet is None:
             raise NotFoundError(f"宠物不存在: {pet_id}")
         return pet
 
-    def list_for_pet(self, pet_id: str) -> list[ShedRecord]:
-        self._get_pet(pet_id)
+    def list_for_pet(self, pet_id: str, *, owner_id: str | None = None) -> list[ShedRecord]:
+        self._get_pet(pet_id, owner_id=owner_id)
         return self._records.list_for_pet(pet_id)
 
     def create(
@@ -236,8 +240,9 @@ class ShedRecordService:
         started_on: date,
         completed_on: date | None = None,
         notes: str | None = None,
+        owner_id: str | None = None,
     ) -> ShedRecord:
-        self._get_pet(pet_id)
+        self._get_pet(pet_id, owner_id=owner_id)
         if completed_on is not None and completed_on < started_on:
             raise InvalidRequestError("完成日期不能早于开始日期")
         if notes and len(notes) > MAX_NOTES_LENGTH:
@@ -266,8 +271,9 @@ class ShedRecordService:
         started_on: date | None = None,
         completed_on: date | None = None,
         notes: str | None = None,
+        owner_id: str | None = None,
     ) -> ShedRecord:
-        self._get_pet(pet_id)
+        self._get_pet(pet_id, owner_id=owner_id)
         record = self._records.find(record_id)
         if record is None or record.pet_id != pet_id:
             raise NotFoundError(f"蜕皮记录不存在: {record_id}")
@@ -293,15 +299,19 @@ class ShedRecordService:
         self._records.update(updated)
         return updated
 
-    def delete(self, pet_id: str, record_id: str) -> None:
-        self._get_pet(pet_id)
+    def delete(
+        self, pet_id: str, record_id: str, *, owner_id: str | None = None
+    ) -> None:
+        self._get_pet(pet_id, owner_id=owner_id)
         record = self._records.find(record_id)
         if record is None or record.pet_id != pet_id:
             raise NotFoundError(f"蜕皮记录不存在: {record_id}")
         self._records.delete(record_id)
 
-    def predict(self, pet_id: str, *, today: date | None = None) -> ShedPrediction:
-        self._get_pet(pet_id)
+    def predict(
+        self, pet_id: str, *, today: date | None = None, owner_id: str | None = None
+    ) -> ShedPrediction:
+        self._get_pet(pet_id, owner_id=owner_id)
         records = self._records.list_for_pet(pet_id)
         return predict_next_shed(records, today=today or datetime.now(UTC).date())
 
@@ -320,8 +330,9 @@ class CheckPhotoService:
         payload: bytes,
         *,
         now: datetime | None = None,
+        owner_id: str | None = None,
     ) -> PetCheckResult:
-        pet = self._pets.find(pet_id)
+        pet = self._pets.find(pet_id, owner_id)
         if pet is None:
             raise NotFoundError(f"宠物不存在: {pet_id}")
         if not payload:

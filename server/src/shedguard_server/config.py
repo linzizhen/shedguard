@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     expo_push_url: str = DEFAULT_EXPO_PUSH_URL
     push_timeout_seconds: float = Field(default=DEFAULT_PUSH_TIMEOUT_SECONDS, gt=0.0, le=60.0)
     alert_cooldown_hours: int = Field(default=DEFAULT_ALERT_COOLDOWN_HOURS, ge=0, le=168)
+    # 鉴权：默认开启；关闭后所有请求视为同一个本机账号（仅用于本地测试/开发）。
+    auth_enabled: bool = True
+    # 固件上传用的静态设备令牌；为空则不校验设备身份并记 WARNING。
+    device_token: str = ""
 
     @field_validator("timezone")
     @classmethod

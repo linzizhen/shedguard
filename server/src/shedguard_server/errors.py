@@ -17,6 +17,7 @@ class ErrorCode(StrEnum):
     CONFLICT = "CONFLICT"
     STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE"
     MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+    UNAUTHORIZED = "UNAUTHORIZED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
@@ -73,6 +74,13 @@ class ModelUnavailableError(ApiError):
 
     code = ErrorCode.MODEL_UNAVAILABLE
     status_code = 503
+
+
+class UnauthorizedError(ApiError):
+    """缺少或无效的令牌；只在需要身份的接口上出现。"""
+
+    code = ErrorCode.UNAUTHORIZED
+    status_code = 401
 
 
 class InternalError(ApiError):

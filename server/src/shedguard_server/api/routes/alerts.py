@@ -8,10 +8,15 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from shedguard_server.api.dependencies import get_alert_repository
+from shedguard_server.api.dependencies import (
+    get_alert_repository,
+    get_current_user,
+    get_pet_repository,
+)
 from shedguard_server.domain.alerts import Alert
+from shedguard_server.domain.user import User
 from shedguard_server.errors import NotFoundError
-from shedguard_server.infra.repository import AlertRepository
+from shedguard_server.infra.repository import AlertRepository, PetRepository
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
@@ -44,11 +49,14 @@ def serialize_alert(alert: Alert) -> dict[str, Any]:
 @router.get("")
 def list_alerts(
     repository: Annotated[AlertRepository, Depends(get_alert_repository)],
+    user: Annotated[User, Depends(get_current_user)],
     device_id: Annotated[str | None, Query()] = None,
     pet_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> dict[str, Any]:
-    items = repository.list(device_id=device_id, pet_id=pet_id, limit=limit)
+    items = repository.list(
+        device_id=device_id, pet_id=pet_id, owner_id=user.id, limit=limit
+    )
     return {"items": [serialize_alert(alert) for alert in items]}
 
 
@@ -57,9 +65,13 @@ def patch_alert(
     alert_id: str,
     body: AlertPatch,
     repository: Annotated[AlertRepository, Depends(get_alert_repository)],
+    pets: Annotated[PetRepository, Depends(get_pet_repository)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
     alert = repository.get(alert_id)
     if alert is None:
+        raise NotFoundError(f"提醒不存在: {alert_id}")
+    if alert.pet_id is not None and pets.find(alert.pet_id, user.id) is None:
         raise NotFoundError(f"提醒不存在: {alert_id}")
     read_at = alert.read_at_utc
     if body.read and read_at is None:

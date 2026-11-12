@@ -10,6 +10,20 @@ class Base(DeclarativeBase):
     """所有表的声明式基类。"""
 
 
+class UserRow(Base):
+    """匿名账号；只存令牌的 sha256 摘要，不存明文。"""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    last_seen_at_utc: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"UserRow(id={self.id!r})"
+
+
 class ImageRow(Base):
     __tablename__ = "images"
 
@@ -95,6 +109,9 @@ class PetRow(Base):
     birth_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
     updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"PetRow(id={self.id!r}, name={self.name!r})"
@@ -168,6 +185,9 @@ class PushDeviceRow(Base):
     platform: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
     updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True, index=True
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"PushDeviceRow(id={self.id!r}, platform={self.platform!r})"

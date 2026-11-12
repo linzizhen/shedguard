@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -11,6 +12,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from shedguard_server.config import Settings
 from shedguard_server.domain.detection import Detector
 from shedguard_server.domain.shedding import StateClassifier
+from shedguard_server.domain.user import User
+from shedguard_server.errors import UnauthorizedError
+from shedguard_server.infra.auth import hash_token
 from shedguard_server.infra.repository import (
     AlertRepository,
     FrameMetricRepository,
@@ -19,9 +23,13 @@ from shedguard_server.infra.repository import (
     PushDeviceRepository,
     SheddingStateRepository,
     ShedRecordRepository,
+    UserRepository,
 )
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.judgement import JudgementService
+
+#: 关闭鉴权时使用的本机账号标识。
+DEV_USER_ID = "dev"
 
 
 def get_settings(request: Request) -> Settings:
@@ -77,6 +85,35 @@ def get_push_device_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> PushDeviceRepository:
     return PushDeviceRepository(session)
+
+
+def get_user_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> UserRepository:
+    return UserRepository(session)
+
+
+def get_current_user(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+    users: Annotated[UserRepository, Depends(get_user_repository)],
+) -> User:
+    """从 `Authorization: Bearer <token>` 解析当前用户。
+
+    鉴权关闭时返回一个固定的本机账号，便于本地测试与开发。
+    """
+    if not settings.auth_enabled:
+        return User(id=DEV_USER_ID, created_at_utc=datetime.now(UTC))
+
+    header = request.headers.get("authorization", "")
+    scheme, _, raw = header.partition(" ")
+    if scheme.lower() != "bearer" or not raw.strip():
+        raise UnauthorizedError("缺少访问令牌")
+    user = users.find_by_token_hash(hash_token(raw.strip()))
+    if user is None:
+        raise UnauthorizedError("访问令牌无效")
+    users.touch(user, at=datetime.now(UTC))
+    return user
 
 
 def get_state_classifier(request: Request) -> StateClassifier | None:
