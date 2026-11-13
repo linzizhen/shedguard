@@ -87,14 +87,14 @@ switch ($Action) {
         $current = Get-CurrentBranch
         Write-Output "当前分支：$current"
         Write-Output ''
-        Invoke-Git branch -vv
+        Invoke-Git branch --verbose --verbose
     }
 
     'feature-start' {
         Assert-Name $Name 'Name'
         Assert-Clean
         Sync-From $DevelopBranch
-        Invoke-Git switch -c "feature/$Name"
+        Invoke-Git switch --create "feature/$Name"
         Write-Output "已从 $DevelopBranch 切出 feature/$Name，完成后用 feature-finish 合并回去。"
     }
 
@@ -103,9 +103,9 @@ switch ($Action) {
         Assert-Clean
         $branch = "feature/$Name"
         Sync-From $DevelopBranch
-        Invoke-Git merge --no-ff $branch -m "merge: feature/$Name"
-        Invoke-Git branch -d $branch
-        Invoke-Git push -u origin $DevelopBranch
+        Invoke-Git merge --no-ff $branch --message "merge: feature/$Name"
+        Invoke-Git branch --delete $branch
+        Invoke-Git push --set-upstream origin $DevelopBranch
         Write-Output "feature/$Name 已合并进 $DevelopBranch 并推送。"
     }
 
@@ -113,7 +113,7 @@ switch ($Action) {
         Assert-Version $Version
         Assert-Clean
         Sync-From $DevelopBranch
-        Invoke-Git switch -c "release/$Version"
+        Invoke-Git switch --create "release/$Version"
         Write-Output "已切出 release/$Version：只允许改版本号、文档与本次发布的修复，不再加功能。"
         Write-Output "记得同步改 app/app.json 的 version 与 server/pyproject.toml 的 version。"
     }
@@ -124,12 +124,12 @@ switch ($Action) {
         $branch = "release/$Version"
         Invoke-Git switch $MainBranch
         Invoke-Git pull --ff-only origin $MainBranch
-        Invoke-Git merge --no-ff $branch -m "release: v$Version"
-        Invoke-Git tag -a "v$Version" -m "v$Version"
+        Invoke-Git merge --no-ff $branch --message "release: v$Version"
+        Invoke-Git tag --annotate "v$Version" --message "v$Version"
         Invoke-Git switch $DevelopBranch
-        Invoke-Git merge --no-ff $branch -m "merge: release/$Version 回到 $DevelopBranch"
-        Invoke-Git branch -d $branch
-        Invoke-Git push -u origin $DevelopBranch
+        Invoke-Git merge --no-ff $branch --message "merge: release/$Version 回到 $DevelopBranch"
+        Invoke-Git branch --delete $branch
+        Invoke-Git push --set-upstream origin $DevelopBranch
         Invoke-Git push origin $MainBranch --tags
         Write-Output "v$Version 已发布：$MainBranch 与 $DevelopBranch 都已推送，标签已带上。"
     }
@@ -138,7 +138,7 @@ switch ($Action) {
         Assert-Version $Version
         Assert-Clean
         Sync-From $MainBranch
-        Invoke-Git switch -c "hotfix/$Version"
+        Invoke-Git switch --create "hotfix/$Version"
         Write-Output "已从 $MainBranch 切出 hotfix/$Version：只修线上问题，不夹带新功能。"
     }
 
@@ -148,12 +148,12 @@ switch ($Action) {
         $branch = "hotfix/$Version"
         Invoke-Git switch $MainBranch
         Invoke-Git pull --ff-only origin $MainBranch
-        Invoke-Git merge --no-ff $branch -m "hotfix: v$Version"
-        Invoke-Git tag -a "v$Version" -m "v$Version"
+        Invoke-Git merge --no-ff $branch --message "hotfix: v$Version"
+        Invoke-Git tag --annotate "v$Version" --message "v$Version"
         Invoke-Git switch $DevelopBranch
-        Invoke-Git merge --no-ff $branch -m "merge: hotfix/$Version 回到 $DevelopBranch"
-        Invoke-Git branch -d $branch
-        Invoke-Git push -u origin $DevelopBranch
+        Invoke-Git merge --no-ff $branch --message "merge: hotfix/$Version 回到 $DevelopBranch"
+        Invoke-Git branch --delete $branch
+        Invoke-Git push --set-upstream origin $DevelopBranch
         Invoke-Git push origin $MainBranch --tags
         Write-Output "热修 v$Version 已发布并回灌 $DevelopBranch。"
     }
