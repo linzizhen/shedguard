@@ -7,14 +7,14 @@
     两条长期分支：main（可发布）/ develop（集成）。
     三条短期分支：feature/*、release/*、hotfix/*。
 
-    用法示例：
-        pwsh scripts/gitflow.ps1 feature-start -Name portrait-album-paging
-        pwsh scripts/gitflow.ps1 feature-finish -Name portrait-album-paging
-        pwsh scripts/gitflow.ps1 release-start -Version 0.2.0
-        pwsh scripts/gitflow.ps1 release-finish -Version 0.2.0
-        pwsh scripts/gitflow.ps1 hotfix-start -Version 0.1.1
-        pwsh scripts/gitflow.ps1 hotfix-finish -Version 0.1.1
-        pwsh scripts/gitflow.ps1 status
+    用法示例（本机没有 pwsh，用 .cmd 包装）：
+        .\scripts\gitflow.cmd feature-start -Name portrait-album-paging
+        .\scripts\gitflow.cmd feature-finish -Name portrait-album-paging
+        .\scripts\gitflow.cmd release-start -Version 0.2.0
+        .\scripts\gitflow.cmd release-finish -Version 0.2.0
+        .\scripts\gitflow.cmd hotfix-start -Version 0.1.1
+        .\scripts\gitflow.cmd hotfix-finish -Version 0.1.1
+        .\scripts\gitflow.cmd status
 #>
 [CmdletBinding()]
 param(
@@ -68,10 +68,14 @@ function Assert-Version { param([string]$Value)
     if ($Value -notmatch '^\d+\.\d+\.\d+$') { throw '-Version 必须是 0.2.0 这种三段式版本号' }
 }
 
+function Test-RemoteBranch { param([string]$Branch)
+    & git show-ref --verify --quiet "refs/remotes/origin/$Branch"
+    return ($LASTEXITCODE -eq 0)
+}
+
 function Sync-From { param([string]$Branch)
     Invoke-Git switch $Branch
-    & git rev-parse --verify --quiet "origin/$Branch" | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    if (Test-RemoteBranch $Branch) {
         Invoke-Git pull --ff-only origin $Branch
     } else {
         Write-Output "远端还没有 origin/$Branch，跳过拉取。"
@@ -98,11 +102,10 @@ switch ($Action) {
         Assert-Name $Name 'Name'
         Assert-Clean
         $branch = "feature/$Name"
-        Invoke-Git switch $DevelopBranch
-        Invoke-Git pull --ff-only origin $DevelopBranch
+        Sync-From $DevelopBranch
         Invoke-Git merge --no-ff $branch -m "merge: feature/$Name"
         Invoke-Git branch -d $branch
-        Invoke-Git push origin $DevelopBranch
+        Invoke-Git push -u origin $DevelopBranch
         Write-Output "feature/$Name 已合并进 $DevelopBranch 并推送。"
     }
 
@@ -126,7 +129,8 @@ switch ($Action) {
         Invoke-Git switch $DevelopBranch
         Invoke-Git merge --no-ff $branch -m "merge: release/$Version 回到 $DevelopBranch"
         Invoke-Git branch -d $branch
-        Invoke-Git push origin $MainBranch $DevelopBranch --tags
+        Invoke-Git push -u origin $DevelopBranch
+        Invoke-Git push origin $MainBranch --tags
         Write-Output "v$Version 已发布：$MainBranch 与 $DevelopBranch 都已推送，标签已带上。"
     }
 
@@ -149,7 +153,8 @@ switch ($Action) {
         Invoke-Git switch $DevelopBranch
         Invoke-Git merge --no-ff $branch -m "merge: hotfix/$Version 回到 $DevelopBranch"
         Invoke-Git branch -d $branch
-        Invoke-Git push origin $MainBranch $DevelopBranch --tags
+        Invoke-Git push -u origin $DevelopBranch
+        Invoke-Git push origin $MainBranch --tags
         Write-Output "热修 v$Version 已发布并回灌 $DevelopBranch。"
     }
 }
