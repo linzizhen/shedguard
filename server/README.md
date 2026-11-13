@@ -391,6 +391,37 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 - 从未上传过的设备不判静默（避免设备还没配置就报警）；夜间不判静默。
 - 同一设备同一天同一类提醒只建一条（唯一键去重）。
 
+### 萌照（今日近景）
+
+系统每天自动从当天上传的照片里挑一张「主体够大、够清晰」的守宫照，裁成正方形成品图，在首页与相册展示。选片完全基于已有指标，不需要新硬件。
+
+选片流程：
+
+1. 取当天该设备已分析过、且检出守宫的图片；
+2. 硬门槛：检测置信度 ≥ `SHEDGUARD_PORTRAIT_MIN_DETECTOR_CONFIDENCE`（默认 0.45）、主体占比 ≥ `SHEDGUARD_PORTRAIT_MIN_SUBJECT_RATIO`（默认 0.10）、高光占比 ≤ 0.35；
+3. 相对清晰度门槛：边缘密度低于当天候选中位数 × 0.8 的直接淘汰（避免「全体一样糊」时把好图也筛掉）；
+4. 打分排序：`0.45 × 主体占比 + 0.35 × 清晰度 + 0.20 × 居中程度`；
+5. 与最近若干张做 dHash 比对（汉明距离 ≤ 6 视为重复），按分数从高到低取第一张不重复的；
+6. 以检测框为中心、留 35% 余量裁正方形，缩放并编码成 `SHEDGUARD_PORTRAIT_MAX_OUTPUT_PX` 的正方形 JPEG。
+
+接口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/pets/{pet_id}/portraits?day=&limit=` | 相册列表（按日期倒序） |
+| GET | `/api/v1/pets/{pet_id}/portraits/today` | 今天那一张 |
+| GET | `/api/v1/pets/{pet_id}/portrait-settings` | 读设置（无记录时返回默认：开、每天 1 张、08:00–20:00） |
+| PUT | `/api/v1/pets/{pet_id}/portrait-settings` | 改设置，非法时间窗返回 400 |
+| POST | `/api/v1/portraits/{shot_id}/feedback` | 反馈 `like` / `skip` / `crop_head`（带 `crop_box`） |
+| GET | `/api/v1/portraits/{shot_id}/image` | 成品图（`?token=` 或 Bearer） |
+
+说明：
+
+- `per_day`（0–6）把白天时段均分成若干「槽位」，每个槽位最多生成一张；`per_day = 0` 只关闭生成，不删除已有照片。
+- 提醒复用 `alerts`，`kind = portrait_ready`；由于提醒唯一键是 `(device_id, local_date, kind)`，**每天只有第一张会推送**，其余只入库。
+- 成品图是二次编码的 JPEG，不能当证据图；原图仍按原样保存在 `data/images/`。
+- 后台任务每 `SHEDGUARD_PORTRAIT_SCAN_MINUTES`（默认 10）分钟扫一次；`SHEDGUARD_PORTRAIT_ENABLED=false` 可整体关闭。
+
 ### App 接口错误码补充
 
 | 码 | 状态 | 触发场景 |
@@ -476,6 +507,12 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_IMAGE_RETENTION_DAYS` | `0` | 照片保留天数；`0` 永久保留，大于 0 时后台清理（0–3650） |
 | `SHEDGUARD_RATE_LIMIT_PER_MINUTE` | `0` | 每客户端每分钟请求上限；`0` 关闭（0–6000） |
 | `SHEDGUARD_RATE_LIMIT_BURST` | `60` | 令牌桶容量（突发上限，1–6000） |
+| `SHEDGUARD_PORTRAIT_ENABLED` | `true` | 是否生成每日萌照 |
+| `SHEDGUARD_PORTRAIT_SCAN_MINUTES` | `10` | 萌照扫描间隔（分钟，1–1440） |
+| `SHEDGUARD_PORTRAIT_MIN_SUBJECT_RATIO` | `0.10` | 主体最小占比（0–1） |
+| `SHEDGUARD_PORTRAIT_MIN_DETECTOR_CONFIDENCE` | `0.45` | 检测置信度下限（0–1） |
+| `SHEDGUARD_PORTRAIT_MAX_OUTPUT_PX` | `640` | 成品图最长边（128–2048） |
+| `SHEDGUARD_PORTRAIT_JPEG_QUALITY` | `88` | 成品图 JPEG 质量（40–100） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
