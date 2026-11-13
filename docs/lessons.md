@@ -196,7 +196,7 @@
 
 ---
 
-## 10. 仓库卫生（踩过 2 次）
+## 10. 仓库卫生与脚本（踩过 3 次）
 
 ### 10.1 `.gitignore` 的 `*.png` 把 App 图标挡在仓库外
 
@@ -210,6 +210,14 @@
 - **根因**：`cmd.exe` 按系统 ANSI 代码页解析批处理；Windows PowerShell 5.1 读取无 BOM 的 UTF-8 脚本时也按 ANSI 解码。
 - **正确做法**：`.cmd` 只写 ASCII；`.ps1` 保存为 **UTF-8 带 BOM**；对外再套一个 ASCII 的 `.cmd` 包装（`powershell -NoProfile -ExecutionPolicy Bypass -File ...`），这样没有 `pwsh` 的机器也能用。
 - **自查**：新建脚本后立刻实跑一次最小命令（如 `status`），不要只做语法检查。
+
+### 10.3 PowerShell 会吞掉传给函数的单字母选项
+
+- **现象**：`Invoke-Git branch -d $branch` 执行时 `-d` 消失，git 收到 `git branch feature/x`，报 `fatal: a branch named 'feature/x' already exists`；同一脚本里 `switch -c`、`merge -m`、`tag -a`、`push -u`、`branch -vv` 都有同样风险。
+- **根因**：PowerShell 用自己的参数解析规则处理 `名字 函数 -x` 形式，单字母被当成函数参数名，未透传给 `$Args`。
+- **正确做法**：调用 native 程序时**一律写长选项**：`--delete`、`--create`、`--message`、`--annotate`、`--set-upstream`、`--verbose`。
+- **顺带**：`& git rev-parse --verify --quiet ref | Out-Null; if ($LASTEXITCODE -eq 0)` 在管道里不可靠，判断远端分支改用 `git show-ref --verify --quiet refs/remotes/origin/<branch>`，并把 `$LASTEXITCODE` 立刻存进变量。
+- **自查**：脚本改完必须跑一遍完整动作（如 `feature-start` + `feature-finish` 全流程），不要只看 `status`。
 
 ---
 
