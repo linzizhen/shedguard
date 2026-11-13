@@ -6,11 +6,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, EmptyState, PageHeader, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
 import { usePets } from '@/hooks/usePets';
+import { usePortraitToday } from '@/hooks/usePortraits';
 import { checkPhoto, pickCheckPhoto, takeCheckPhoto } from '@/hooks/useShed';
+import { portraitUrl } from '@/lib/auth';
 import { resultCopy } from '@/lib/resultCopy';
 import { useServerUrl } from '@/lib/serverUrl';
 import { clayPress, clayShadow, colors, radius } from '@/lib/theme';
@@ -56,6 +58,9 @@ export default function HomeScreen() {
   const activePetId =
     selectedPetId && pets.some((p) => p.id === selectedPetId) ? selectedPetId : (pets[0]?.id ?? null);
   const activePet = pets.find((p) => p.id === activePetId) ?? null;
+
+  const portraitQuery = usePortraitToday(activePetId);
+  const todayShot = portraitQuery.data?.items[0] ?? null;
 
   async function shoot(source: 'camera' | 'library') {
     if (!activePetId) return;
@@ -127,6 +132,26 @@ export default function HomeScreen() {
             );
           })}
         </View>
+      ) : null}
+
+      {todayShot ? (
+        <Pressable
+          onPress={() =>
+            router.push({ pathname: '/portrait/[id]', params: { id: todayShot.id } })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="查看今天的萌照"
+          style={({ pressed }) => [pressed && clayPress]}
+        >
+          <Card style={styles.portraitCard}>
+            <Image source={{ uri: portraitUrl(todayShot.id) }} style={styles.portraitThumb} />
+            <View style={styles.portraitText}>
+              <Text style={styles.portraitTitle}>今天的萌照</Text>
+              <Text style={styles.portraitHint}>点开看看，不满意可以换一张</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
+          </Card>
+        </Pressable>
       ) : null}
 
       <View style={styles.shutterWrap}>
@@ -205,6 +230,31 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  portraitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 10,
+  },
+  portraitThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+  },
+  portraitText: {
+    flex: 1,
+    gap: 4,
+  },
+  portraitTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.foreground,
+  },
+  portraitHint: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+  },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',

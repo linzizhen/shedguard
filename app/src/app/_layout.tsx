@@ -75,6 +75,9 @@ export default function RootLayout() {
           <Stack.Screen name="topic/[slug]" options={{ title: '知识详情' }} />
           <Stack.Screen name="alert/[id]" options={{ title: '蜕皮提醒' }} />
           <Stack.Screen name="risk" options={{ title: '卡皮风险评估' }} />
+          <Stack.Screen name="portraits" options={{ title: '萌照相册' }} />
+          <Stack.Screen name="portrait/[id]" options={{ title: '萌照' }} />
+          <Stack.Screen name="portrait-settings" options={{ title: '萌照设置' }} />
         </Stack>
       </SafeAreaProvider>
     </QueryClientProvider>

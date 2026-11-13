@@ -150,3 +150,38 @@ export interface RiskAssessmentResult {
   factors: RiskFactor[];
   vet_warning: string | null;
 }
+
+// ---------- 萌照（/api/v1/pets/{id}/portraits、/api/v1/portraits/{id}/feedback） ----------
+
+export interface PortraitShot {
+  id: string;
+  device_id: string;
+  pet_id: string | null;
+  local_date: string;
+  slot: number;
+  source_image_id: string;
+  width: number;
+  height: number;
+  score: number;
+  created_at_utc: string;
+}
+
+export interface PortraitListResponse {
+  items: PortraitShot[];
+}
+
+export interface PortraitSetting {
+  pet_id: string;
+  enabled: boolean;
+  per_day: number;
+  start_hour: number;
+  end_hour: number;
+  updated_at_utc: string;
+}
+
+export type PortraitFeedbackKind = 'like' | 'skip' | 'crop_head';
+
+export interface PortraitFeedbackInput {
+  kind: PortraitFeedbackKind;
+  crop_box?: number[];
+}

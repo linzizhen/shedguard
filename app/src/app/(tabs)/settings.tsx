@@ -138,6 +138,27 @@ export default function ProfileScreen() {
         {pushStatusText() !== '' ? <Text style={styles.hint}>{pushStatusText()}</Text> : null}
       </Card>
 
+      <SectionTitle>萌照</SectionTitle>
+      <Pressable
+        onPress={() => router.push('/portraits')}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Ionicons name="images-outline" size={20} color={colors.primaryDark} />
+        <Text style={styles.linkText}>萌照相册</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push('/portrait-settings')}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Ionicons name="camera-outline" size={20} color={colors.primaryDark} />
+        <Text style={styles.linkText}>萌照设置</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </Pressable>
+
       <Pressable
         onPress={() => router.push('/knowledge')}
         accessibilityRole="button"

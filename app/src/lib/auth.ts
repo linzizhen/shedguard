@@ -71,3 +71,10 @@ export function imageUrl(imageId: string): string {
   const token = cached ? `?token=${encodeURIComponent(cached)}` : '';
   return `${base}/api/v1/images/${imageId}${token}`;
 }
+
+/** 萌照成品图的地址（服务端二次裁成正方形）。 */
+export function portraitUrl(shotId: string): string {
+  const base = getServerUrl().replace(/\/+$/, '');
+  const token = cached ? `?token=${encodeURIComponent(cached)}` : '';
+  return `${base}/api/v1/portraits/${shotId}/image${token}`;
+}
