@@ -64,9 +64,11 @@ shedguard/
 │   ├── handoff.md            # 交接文档（状态快照 + 新会话入口）
 │   ├── plan.md               # ★ 唯一权威计划（里程碑、当前主线、变更记录）
 │   ├── lessons.md            # 踩坑与防复发清单（开工前扫 §0 自查）
+│   ├── git-flow.md           # 分支模型与发版/热修流程
 │   ├── roadmap.md            # 早期规划存档（2026-11-12 作废，勿据此开发）
 │   └── specs/                # 设计规格（架构级改动的书面记录）
 ├── firmware/                 # ESP32-S3-EYE 固件
+├── scripts/                  # 仓库辅助脚本（gitflow.cmd / gitflow.ps1）
 ├── server/                   # 后端：接收、存储、分析、推送
 └── app/                      # 前端
 ```
@@ -95,22 +97,31 @@ shedguard/
 
 ## 七、常用命令
 
-### Git
+### Git（git flow）
+
+**分支模型**：`main` 只放可发布版本，`develop` 是集成线，功能走 `feature/*`，发版走 `release/*`，线上修复走 `hotfix/*`。完整规范与发版步骤见 [`docs/git-flow.md`](docs/git-flow.md)。
 
 ```powershell
 # 推送前必须先设，否则 Git 自带的 sh.exe 在沙箱里起不来
 $env:GIT_SSH = "C:/Windows/System32/OpenSSH/ssh.exe"
 $env:GIT_SSH_VARIANT = "ssh"
 
-git status
-git add -A
-git commit -m "docs: 简述改动"
-git push origin main
+# 日常：从 develop 开一个功能分支，做完合并回去（.cmd 包装会绕过执行策略，本机没有 pwsh 也能用）
+.\scripts\gitflow.cmd feature-start -Name portrait-album-paging
+.\scripts\gitflow.cmd feature-finish -Name portrait-album-paging
+
+# 发版
+.\scripts\gitflow.cmd release-start -Version 0.2.0
+.\scripts\gitflow.cmd release-finish -Version 0.2.0
+
+# 线上热修
+.\scripts\gitflow.cmd hotfix-start -Version 0.1.1
+.\scripts\gitflow.cmd hotfix-finish -Version 0.1.1
 ```
 
-远端：`git@github.com:linzizhen/shedguard.git`
+远端：`git@github.com:linzizhen/shedguard.git`。当前基线标签 `v0.1.0`。
 
-提交格式 `<type>(<scope>): <中文简述>`，type 取 `feat` / `fix` / `docs` / `refactor` / `test` / `chore`。原子提交，一次只做一件事。
+提交格式 `<type>(<scope>): <中文简述>`，type 取 `feat` / `fix` / `docs` / `refactor` / `test` / `chore`。原子提交，一次只做一件事；合并一律 `--no-ff`，不要 squash 或 rebase 合并。
 
 ### 后端
 

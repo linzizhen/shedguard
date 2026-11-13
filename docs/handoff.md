@@ -65,6 +65,7 @@ shedguard/
 │   ├── data-search-2026-11-09.md # 全网搜索记录（417 张新图，蒙白仍为零）
 │   ├── handoff.md            # 本文件
 │   ├── plan.md               # 唯一权威计划（里程碑、当前主线、变更记录）
+│   ├── git-flow.md           # 分支模型与发版/热修流程（2026-11-13 起用 git flow）
 │   ├── roadmap.md            # 早期规划存档（2026-11-12 作废，勿据此开发）
 │   └── specs/
 │       ├── 2026-11-02-server-image-ingest-design.md   # 后端图片接入服务设计规格
@@ -74,7 +75,8 @@ shedguard/
 │       ├── 2026-11-04-shedding-state-design.md        # 蜕皮状态识别（四态、事件推导、分类器接入）
 │       ├── 2026-11-09-app-and-firmware-design.md      # App 与固件配套（六组新接口、App 界面、固件任务）
 │       └── 2026-11-11-shedding-alert-pipeline-design.md # 蜕皮检测提醒链路（自动流水线、alert、Expo 推送、固件抓拍）
-├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率
+├── scripts/gitflow.ps1       # git flow 助手（feature / release / hotfix 起停）
+├── .github/workflows/ci.yml  # GitHub Actions：ruff + mypy + 覆盖率（main / develop / PR）
 ├── .pre-commit-config.yaml   # 本地提交前钩子
 ├── data/
 │   ├── raw/gecko1/           # Roboflow gecko_1 原始数据（1,163 张，不入库）
