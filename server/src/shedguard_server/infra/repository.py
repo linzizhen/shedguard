@@ -17,12 +17,20 @@ from shedguard_server.domain.models import (
     ShedEvent,
 )
 from shedguard_server.domain.pets import Pet, ShedRecord
+from shedguard_server.domain.portrait import (
+    PortraitFeedback,
+    PortraitSetting,
+    PortraitShot,
+)
 from shedguard_server.domain.user import User
 from shedguard_server.infra.tables import (
     AlertRow,
     FrameMetricRow,
     ImageRow,
     PetRow,
+    PortraitFeedbackRow,
+    PortraitSettingRow,
+    PortraitShotRow,
     PushDeviceRow,
     SheddingStateRow,
     ShedEventRow,
@@ -844,3 +852,253 @@ class PushDeviceRepository:
         self._session.delete(row)
         self._session.commit()
         return True
+
+    def device_for_pet(self, pet_id: str) -> str | None:
+        """取绑定到该宠物的第一个设备号；用于按宠物生成萌照。"""
+        row = self._session.scalar(
+            select(PushDeviceRow).where(
+                PushDeviceRow.pet_id == pet_id,
+                PushDeviceRow.device_id.is_not(None),
+            )
+        )
+        return row.device_id if row is not None else None
+
+
+def _to_portrait_setting(row: PortraitSettingRow) -> PortraitSetting:
+    return PortraitSetting(
+        pet_id=row.pet_id,
+        enabled=bool(row.enabled),
+        per_day=row.per_day,
+        start_hour=row.start_hour,
+        end_hour=row.end_hour,
+        updated_at_utc=_parse_utc(row.updated_at_utc),
+    )
+
+
+def _to_portrait_shot(row: PortraitShotRow) -> PortraitShot:
+    return PortraitShot(
+        id=row.id,
+        device_id=row.device_id,
+        pet_id=row.pet_id,
+        local_date=date.fromisoformat(row.local_date),
+        slot=row.slot,
+        source_image_id=row.source_image_id,
+        rel_path=row.rel_path,
+        width=row.width,
+        height=row.height,
+        score=row.score,
+        created_at_utc=_parse_utc(row.created_at_utc),
+    )
+
+
+def _parse_box(value: str | None) -> tuple[int, int, int, int] | None:
+    if value is None:
+        return None
+    parts = [int(chunk) for chunk in value.split(",")]
+    if len(parts) != 4:
+        return None
+    return (parts[0], parts[1], parts[2], parts[3])
+
+
+def _format_box(box: tuple[int, int, int, int] | None) -> str | None:
+    if box is None:
+        return None
+    return ",".join(str(value) for value in box)
+
+
+def _to_portrait_feedback(row: PortraitFeedbackRow) -> PortraitFeedback:
+    return PortraitFeedback(
+        id=row.id,
+        shot_id=row.shot_id,
+        owner_id=row.owner_id,
+        kind=row.kind,
+        crop_box=_parse_box(row.crop_box),
+        created_at_utc=_parse_utc(row.created_at_utc),
+    )
+
+
+class PortraitSettingRepository:
+    """portrait_settings 表的读写；缺行时由服务层套默认值。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, pet_id: str) -> PortraitSetting | None:
+        row = self._session.get(PortraitSettingRow, pet_id)
+        return _to_portrait_setting(row) if row is not None else None
+
+    def upsert(self, setting: PortraitSetting) -> PortraitSetting:
+        row = self._session.get(PortraitSettingRow, setting.pet_id)
+        if row is None:
+            row = PortraitSettingRow(
+                pet_id=setting.pet_id,
+                enabled=setting.enabled,
+                per_day=setting.per_day,
+                start_hour=setting.start_hour,
+                end_hour=setting.end_hour,
+                updated_at_utc=setting.updated_at_utc.isoformat(),
+            )
+            self._session.add(row)
+        else:
+            row.enabled = setting.enabled
+            row.per_day = setting.per_day
+            row.start_hour = setting.start_hour
+            row.end_hour = setting.end_hour
+            row.updated_at_utc = setting.updated_at_utc.isoformat()
+        self._session.commit()
+        self._session.refresh(row)
+        return _to_portrait_setting(row)
+
+    def delete_for_pet(self, pet_id: str) -> None:
+        row = self._session.get(PortraitSettingRow, pet_id)
+        if row is not None:
+            self._session.delete(row)
+            self._session.commit()
+
+
+class PortraitShotRepository:
+    """portrait_shots 表的读写；同设备同天同槽位唯一。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, shot_id: str) -> PortraitShot | None:
+        row = self._session.get(PortraitShotRow, shot_id)
+        return _to_portrait_shot(row) if row is not None else None
+
+    def find_slot(self, device_id: str, local_date: date, slot: int) -> PortraitShot | None:
+        row = self._session.scalar(
+            select(PortraitShotRow).where(
+                PortraitShotRow.device_id == device_id,
+                PortraitShotRow.local_date == local_date.isoformat(),
+                PortraitShotRow.slot == slot,
+            )
+        )
+        return _to_portrait_shot(row) if row is not None else None
+
+    def count_for_date(self, device_id: str, local_date: date) -> int:
+        total = self._session.scalar(
+            select(func.count())
+            .select_from(PortraitShotRow)
+            .where(
+                PortraitShotRow.device_id == device_id,
+                PortraitShotRow.local_date == local_date.isoformat(),
+            )
+        )
+        return int(total or 0)
+
+    def source_ids(self, device_id: str, local_date: date) -> set[str]:
+        """当天已经被用掉的源图 id，避免同一天重复用同一张。"""
+        rows = self._session.scalars(
+            select(PortraitShotRow.source_image_id).where(
+                PortraitShotRow.device_id == device_id,
+                PortraitShotRow.local_date == local_date.isoformat(),
+                PortraitShotRow.source_image_id.is_not(None),
+            )
+        ).all()
+        return {value for value in rows if value}
+
+    def add(self, shot: PortraitShot) -> PortraitShot:
+        self._session.add(
+            PortraitShotRow(
+                id=shot.id,
+                device_id=shot.device_id,
+                pet_id=shot.pet_id,
+                local_date=shot.local_date.isoformat(),
+                slot=shot.slot,
+                source_image_id=shot.source_image_id,
+                rel_path=shot.rel_path,
+                width=shot.width,
+                height=shot.height,
+                score=shot.score,
+                dhash="",
+                created_at_utc=shot.created_at_utc.isoformat(),
+            )
+        )
+        self._session.commit()
+        return shot
+
+    def save_hash(self, shot_id: str, digest: str) -> None:
+        row = self._session.get(PortraitShotRow, shot_id)
+        if row is not None:
+            row.dhash = digest
+            self._session.commit()
+
+    def recent_hashes(self, device_id: str, *, limit: int = 7) -> list[str]:
+        rows = self._session.scalars(
+            select(PortraitShotRow.dhash)
+            .where(PortraitShotRow.device_id == device_id, PortraitShotRow.dhash != "")
+            .order_by(PortraitShotRow.created_at_utc.desc())
+            .limit(limit)
+        ).all()
+        return [value for value in rows if value]
+
+    def list_for_pet(
+        self, pet_id: str, *, local_date: date | None = None, limit: int = 30
+    ) -> list[PortraitShot]:
+        statement = select(PortraitShotRow).where(PortraitShotRow.pet_id == pet_id)
+        if local_date is not None:
+            statement = statement.where(
+                PortraitShotRow.local_date == local_date.isoformat()
+            )
+        rows = self._session.scalars(
+            statement.order_by(PortraitShotRow.created_at_utc.desc()).limit(limit)
+        ).all()
+        return [_to_portrait_shot(row) for row in rows]
+
+    def latest_for_pet(self, pet_id: str) -> PortraitShot | None:
+        row = self._session.scalar(
+            select(PortraitShotRow)
+            .where(PortraitShotRow.pet_id == pet_id)
+            .order_by(PortraitShotRow.created_at_utc.desc())
+            .limit(1)
+        )
+        return _to_portrait_shot(row) if row is not None else None
+
+    def delete_for_pet(self, pet_id: str) -> None:
+        for row in self._session.scalars(
+            select(PortraitShotRow).where(PortraitShotRow.pet_id == pet_id)
+        ).all():
+            self._session.delete(row)
+        self._session.commit()
+
+
+class PortraitFeedbackRepository:
+    """portrait_feedback 表的读写；同张照的同类反馈只留一条。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, shot_id: str, kind: str) -> PortraitFeedback | None:
+        row = self._session.scalar(
+            select(PortraitFeedbackRow).where(
+                PortraitFeedbackRow.shot_id == shot_id,
+                PortraitFeedbackRow.kind == kind,
+            )
+        )
+        return _to_portrait_feedback(row) if row is not None else None
+
+    def add(self, feedback: PortraitFeedback) -> PortraitFeedback:
+        existing = self.find(feedback.shot_id, feedback.kind)
+        if existing is not None:
+            return existing
+        self._session.add(
+            PortraitFeedbackRow(
+                id=feedback.id,
+                shot_id=feedback.shot_id,
+                owner_id=feedback.owner_id,
+                kind=feedback.kind,
+                crop_box=_format_box(feedback.crop_box),
+                created_at_utc=feedback.created_at_utc.isoformat(),
+            )
+        )
+        self._session.commit()
+        return feedback
+
+    def list_for_shot(self, shot_id: str) -> list[PortraitFeedback]:
+        rows = self._session.scalars(
+            select(PortraitFeedbackRow)
+            .where(PortraitFeedbackRow.shot_id == shot_id)
+            .order_by(PortraitFeedbackRow.created_at_utc)
+        ).all()
+        return [_to_portrait_feedback(row) for row in rows]

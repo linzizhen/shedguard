@@ -26,6 +26,7 @@ from shedguard_server.api.routes import (
     images,
     knowledge,
     pets,
+    portraits,
     risk,
     series,
     shedding,
@@ -51,6 +52,7 @@ from shedguard_server.infra.migrate import run_migrations
 from shedguard_server.infra.push import ExpoPushGateway, SkippedPushGateway
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.logging_setup import configure_logging, request_id_var
+from shedguard_server.services import portraits as portrait_service
 from shedguard_server.services.health import scan_once
 from shedguard_server.services.retention import purge_once
 
@@ -140,6 +142,28 @@ async def _retention_loop(
         await asyncio.sleep(RETENTION_INTERVAL_SECONDS)
 
 
+async def _portrait_loop(
+    session_factory: sessionmaker[Session],
+    settings: Settings,
+    storage: LocalStorage,
+    gateway: PushGateway,
+) -> None:
+    """周期挑选萌照；异常只记日志，不让后台任务退出。"""
+    interval = settings.portrait_scan_minutes * 60
+    while True:
+        try:
+            await asyncio.to_thread(
+                portrait_service.scan_once,
+                session_factory=session_factory,
+                settings=settings,
+                storage=storage,
+                gateway=gateway,
+            )
+        except Exception:  # 后台任务必须自愈
+            logger.exception("萌照挑选失败")
+        await asyncio.sleep(interval)
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -171,6 +195,17 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 )
             )
         instance.state.retention_task = retention_task
+        portrait_task: asyncio.Task[None] | None = None
+        if settings.portrait_enabled:
+            portrait_task = asyncio.create_task(
+                _portrait_loop(
+                    instance.state.session_factory,
+                    settings,
+                    LocalStorage(settings.data_dir),
+                    instance.state.push_gateway,
+                )
+            )
+        instance.state.portrait_task = portrait_task
         try:
             yield
         finally:
@@ -182,6 +217,10 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 retention_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await retention_task
+            if portrait_task is not None:
+                portrait_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await portrait_task
             logger.info("服务停止")
 
     app = FastAPI(title="shedguard-server", version=__version__, lifespan=lifespan)
@@ -277,4 +316,5 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(devices.router)
     app.include_router(alerts.router)
     app.include_router(users.router)
+    app.include_router(portraits.router)
     return app

@@ -25,6 +25,7 @@ def settings(workdir: Path) -> Settings:
         max_upload_bytes=1024,
         auth_enabled=False,
         health_monitor_enabled=False,
+        portrait_enabled=False,
     )
 
 

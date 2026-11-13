@@ -20,6 +20,9 @@ from shedguard_server.infra.repository import (
     FrameMetricRepository,
     ImageRepository,
     PetRepository,
+    PortraitFeedbackRepository,
+    PortraitSettingRepository,
+    PortraitShotRepository,
     PushDeviceRepository,
     SheddingStateRepository,
     ShedRecordRepository,
@@ -91,6 +94,24 @@ def get_user_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> UserRepository:
     return UserRepository(session)
+
+
+def get_portrait_shot_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PortraitShotRepository:
+    return PortraitShotRepository(session)
+
+
+def get_portrait_feedback_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PortraitFeedbackRepository:
+    return PortraitFeedbackRepository(session)
+
+
+def get_portrait_setting_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PortraitSettingRepository:
+    return PortraitSettingRepository(session)
 
 
 def get_current_user(

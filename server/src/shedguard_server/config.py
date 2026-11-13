@@ -92,6 +92,13 @@ class Settings(BaseSettings):
     # 请求速率限制：0 表示关闭；开启后按「客户端 IP + 令牌摘要」分组限流。
     rate_limit_per_minute: int = Field(default=DEFAULT_RATE_LIMIT_PER_MINUTE, ge=0, le=6000)
     rate_limit_burst: int = Field(default=DEFAULT_RATE_LIMIT_BURST, ge=1, le=6000)
+    # 萌照：每天挑一张近景发出来；开关关掉时后台不扫描，接口照常可读。
+    portrait_enabled: bool = True
+    portrait_scan_minutes: int = Field(default=10, ge=1, le=1440)
+    portrait_min_subject_ratio: float = Field(default=0.10, ge=0.0, le=1.0)
+    portrait_min_detector_confidence: float = Field(default=0.45, ge=0.0, le=1.0)
+    portrait_max_output_px: int = Field(default=640, ge=128, le=2048)
+    portrait_jpeg_quality: int = Field(default=88, ge=40, le=100)
 
     @field_validator("timezone")
     @classmethod

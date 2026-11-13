@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -222,3 +231,80 @@ class AlertRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"AlertRow(id={self.id!r}, kind={self.kind!r}, date={self.local_date!r})"
+
+
+class PortraitSettingRow(Base):
+    """一只宠物的萌照偏好；没这行时用代码默认值。"""
+
+    __tablename__ = "portrait_settings"
+
+    pet_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("pets.id"), primary_key=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    per_day: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"PortraitSettingRow(pet_id={self.pet_id!r}, per_day={self.per_day!r})"
+
+
+class PortraitShotRow(Base):
+    """一张已生成的萌照。同一设备同一天同一槽位只会生成一次。"""
+
+    __tablename__ = "portrait_shots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    pet_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("pets.id"), nullable=True, index=True
+    )
+    local_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    slot: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_image_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("images.id"), nullable=True
+    )
+    rel_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    dhash: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "device_id", "local_date", "slot", name="ux_portrait_shots_device_date_slot"
+        ),
+        Index("ix_portrait_shots_pet_date", "pet_id", "local_date"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return (
+            f"PortraitShotRow(id={self.id!r}, date={self.local_date!r}, slot={self.slot!r})"
+        )
+
+
+class PortraitFeedbackRow(Base):
+    """用户对萌照的反馈；`crop_head` 会额外带一个人工框。"""
+
+    __tablename__ = "portrait_feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    shot_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("portrait_shots.id"), nullable=False, index=True
+    )
+    owner_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    crop_box: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("shot_id", "kind", name="ux_portrait_feedback_shot_kind"),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"PortraitFeedbackRow(id={self.id!r}, kind={self.kind!r})"
