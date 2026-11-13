@@ -196,13 +196,20 @@
 
 ---
 
-## 10. 仓库卫生（踩过 1 次）
+## 10. 仓库卫生（踩过 2 次）
 
 ### 10.1 `.gitignore` 的 `*.png` 把 App 图标挡在仓库外
 
 - **现象**：克隆后 App 缺图标，`git status` 却显示干净。
 - **正确做法**：加例外 `!app/assets/` + `!app/assets/**`，并用 `git check-ignore -v <path>` 逐项确认。
 - **教训**：**宽泛的通配规则必须配例外并实测**，否则「本地看着正常、克隆后坏掉」。
+
+### 10.2 `.cmd` / `.ps1` 里的中文会让脚本直接跑不起来
+
+- **现象**：`scripts\gitflow.cmd` 第一行注释带中文，执行时报 `'…' is not recognized as an internal or external command`；`gitflow.ps1` 被 Windows PowerShell 5.1 按 GBK 读取，中文串变乱码后触发语法错误（`Unexpected token`）。
+- **根因**：`cmd.exe` 按系统 ANSI 代码页解析批处理；Windows PowerShell 5.1 读取无 BOM 的 UTF-8 脚本时也按 ANSI 解码。
+- **正确做法**：`.cmd` 只写 ASCII；`.ps1` 保存为 **UTF-8 带 BOM**；对外再套一个 ASCII 的 `.cmd` 包装（`powershell -NoProfile -ExecutionPolicy Bypass -File ...`），这样没有 `pwsh` 的机器也能用。
+- **自查**：新建脚本后立刻实跑一次最小命令（如 `status`），不要只做语法检查。
 
 ---
 

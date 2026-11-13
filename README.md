@@ -41,8 +41,20 @@ shedguard/
 ├── firmware/    # ESP32-S3-EYE 固件（ESP-IDF）
 ├── server/      # 后端：收图、分析、判定、提醒（FastAPI + SQLite）
 ├── app/         # 手机 App（Expo + React Native + TypeScript）
-└── ml/          # 模型训练脚本（检测器 + 状态分类器）
+├── ml/          # 模型训练脚本（检测器 + 状态分类器）
+└── scripts/     # 仓库辅助脚本（git flow 助手）
 ```
+
+## 分支与发布
+
+项目用 git flow 管理：`main` 只放可发布版本，`develop` 是集成线，功能走 `feature/*`，发版走 `release/*`，线上修复走 `hotfix/*`；合并一律 `--no-ff`，版本用 `v0.1.0` 这样的标签。当前基线是 `v0.1.0`。
+
+```powershell
+.\scripts\gitflow.cmd feature-start -Name my-change
+.\scripts\gitflow.cmd feature-finish -Name my-change
+```
+
+完整规则（含发版、热修、远端保护设置）见 [`docs/git-flow.md`](docs/git-flow.md)。
 
 ## 快速开始
 
