@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shedguard_server import __version__
+from shedguard_server.api.ratelimit import EXEMPT_PATHS, TokenBucketLimiter, client_key
 from shedguard_server.api.routes import (
     alerts,
     analysis,
@@ -39,6 +40,7 @@ from shedguard_server.errors import (
     InternalError,
     InvalidRequestError,
     NotFoundError,
+    RateLimitedError,
     error_payload,
 )
 from shedguard_server.ids import new_request_id
@@ -47,12 +49,15 @@ from shedguard_server.infra.db import create_db_engine, create_session_factory
 from shedguard_server.infra.detector import OnnxDetector
 from shedguard_server.infra.migrate import run_migrations
 from shedguard_server.infra.push import ExpoPushGateway, SkippedPushGateway
+from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.logging_setup import configure_logging, request_id_var
 from shedguard_server.services.health import scan_once
+from shedguard_server.services.retention import purge_once
 
 logger = logging.getLogger("shedguard.http")
 
 REQUEST_ID_HEADER = "X-Request-Id"
+RETENTION_INTERVAL_SECONDS = 6 * 60 * 60
 
 
 def _error_response(error: ApiError) -> JSONResponse:
@@ -118,6 +123,23 @@ async def _health_loop(
         await asyncio.sleep(interval)
 
 
+async def _retention_loop(
+    session_factory: sessionmaker[Session], settings: Settings, storage: LocalStorage
+) -> None:
+    """周期清理过期照片；异常只记日志，不让后台任务退出。"""
+    while True:
+        try:
+            await asyncio.to_thread(
+                purge_once,
+                session_factory=session_factory,
+                settings=settings,
+                storage=storage,
+            )
+        except Exception:  # 后台任务必须自愈
+            logger.exception("过期照片清理失败")
+        await asyncio.sleep(RETENTION_INTERVAL_SECONDS)
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -139,6 +161,16 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 _health_loop(instance.state.session_factory, settings, instance.state.push_gateway)
             )
             instance.state.health_task = health_task
+        retention_task: asyncio.Task[None] | None = None
+        if settings.image_retention_days > 0:
+            retention_task = asyncio.create_task(
+                _retention_loop(
+                    instance.state.session_factory,
+                    settings,
+                    LocalStorage(settings.data_dir),
+                )
+            )
+        instance.state.retention_task = retention_task
         try:
             yield
         finally:
@@ -146,6 +178,10 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 health_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await health_task
+            if retention_task is not None:
+                retention_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await retention_task
             logger.info("服务停止")
 
     app = FastAPI(title="shedguard-server", version=__version__, lifespan=lifespan)
@@ -155,6 +191,15 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.state.detector, app.state.detector_error = _build_detector(settings)
     app.state.state_classifier, app.state.classifier_error = _build_classifier(settings)
     app.state.push_gateway = _build_push_gateway(settings)
+    rate_limiter = (
+        TokenBucketLimiter(
+            per_minute=settings.rate_limit_per_minute,
+            burst=settings.rate_limit_burst,
+        )
+        if settings.rate_limit_per_minute > 0
+        else None
+    )
+    app.state.rate_limiter = rate_limiter
 
     async def request_context(
         request: Request,
@@ -169,6 +214,23 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
         response.headers[REQUEST_ID_HEADER] = request_id
         return response
 
+    @app.middleware("http")
+    async def rate_limit(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        path = request.url.path
+        if (
+            rate_limiter is not None
+            and path not in EXEMPT_PATHS
+            and not path.startswith("/docs/")
+            and not rate_limiter.allow(client_key(request))
+        ):
+            return _error_response(RateLimitedError("请求过于频繁，请稍后再试"))
+        return await call_next(request)
+
+    # Starlette 后注册的中间件在外层：先注册限流、再注册上下文，request_context
+    # 才会先执行，429 响应也能带上 request_id 与 X-Request-Id。
     app.middleware("http")(request_context)
 
     # 网页版（React Native Web）调试时需要跨域访问本服务；默认关闭。

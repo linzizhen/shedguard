@@ -411,7 +411,12 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `STORAGE_UNAVAILABLE` | 503 | 数据目录、数据库或模型文件不可用 |
 | `MODEL_UNAVAILABLE` | 503 | 状态分类模型未配置或加载失败 |
 | `UNAUTHORIZED` | 401 | 缺少、格式错误或无效的访问令牌 / 设备令牌 |
+| `RATE_LIMITED` | 429 | 超过 `SHEDGUARD_RATE_LIMIT_PER_MINUTE` 配置的请求速率 |
 | `INTERNAL_ERROR` | 500 | 未预期异常 |
+
+### 请求限流
+
+`SHEDGUARD_RATE_LIMIT_PER_MINUTE`（默认 `0`，即关闭）大于 0 时，服务端按「客户端 IP + `Authorization` 头哈希前 12 位」维护进程内令牌桶：每分钟匀速补充 N 个令牌，最多积压 `SHEDGUARD_RATE_LIMIT_BURST`（默认 60）个。超过速率返回 429 与 `RATE_LIMITED`；`/healthz`、`/readyz`、`/docs`、`/openapi.json` 始终放行。限流状态在进程内存中，多进程部署时各进程独立计数；长期未出现的 key 会被定期清理。
 
 ## 账号与鉴权
 
@@ -468,6 +473,9 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_NO_DETECTION_STREAK` | `5` | 连续多少次未检出守宫算异常（2–20） |
 | `SHEDGUARD_CAPTURE_START_HOUR` | `8` | 活跃时段起始整点（0–23） |
 | `SHEDGUARD_CAPTURE_END_HOUR` | `20` | 活跃时段结束整点（0–23） |
+| `SHEDGUARD_IMAGE_RETENTION_DAYS` | `0` | 照片保留天数；`0` 永久保留，大于 0 时后台清理（0–3650） |
+| `SHEDGUARD_RATE_LIMIT_PER_MINUTE` | `0` | 每客户端每分钟请求上限；`0` 关闭（0–6000） |
+| `SHEDGUARD_RATE_LIMIT_BURST` | `60` | 令牌桶容量（突发上限，1–6000） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
@@ -480,6 +488,10 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 ```
 
 文件先写同目录临时文件再原子重命名；路径完全由服务端生成，不接受客户端指定。
+
+### 照片保留
+
+`SHEDGUARD_IMAGE_RETENTION_DAYS`（默认 `0`，范围 0–3650）：`0` 表示永久保留（保持原行为）；大于 `0` 时，后台每 6 小时清理一次 `captured_at_utc` 严格早于 `now - N 天` 的图片。清理顺序是先删磁盘文件（文件已缺失视为已删，不报错），再删数据库行；对应的 `frame_metrics`、`shedding_states` 一并删除，`alerts` 保留但解除 `image_id` 引用（提醒历史不随照片消失）。正好等于截止时刻的图片不会被删。
 
 ## 迁移
 
@@ -519,6 +531,7 @@ server/
     api/
       dependencies.py   依赖装配
       params.py         查询参数解析
+      ratelimit.py      进程内令牌桶限流
       routes/           HTTP 路由（health / images / series / shed-events / analysis / shedding / pets / knowledge / risk）
     domain/             领域规则（校验、命名、时间、序列、事件、成像、检测、指标、判定、蜕皮状态、宠物、知识、风险）
     services/           用例编排
@@ -531,4 +544,4 @@ server/
 
 ## 已知欠账
 
-无鉴权、无 HTTPS、无留存策略、无磁盘配额、无限流、无备份、存储未加密。详见设计规格第 16 节。
+无鉴权、无 HTTPS、无磁盘配额、无备份、存储未加密。详见设计规格第 16 节。

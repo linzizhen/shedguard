@@ -18,6 +18,7 @@ class ErrorCode(StrEnum):
     STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE"
     MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
     UNAUTHORIZED = "UNAUTHORIZED"
+    RATE_LIMITED = "RATE_LIMITED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
@@ -81,6 +82,13 @@ class UnauthorizedError(ApiError):
 
     code = ErrorCode.UNAUTHORIZED
     status_code = 401
+
+
+class RateLimitedError(ApiError):
+    """请求超过配置速率；客户端应退避重试，而不是重放业务逻辑。"""
+
+    code = ErrorCode.RATE_LIMITED
+    status_code = 429
 
 
 class InternalError(ApiError):

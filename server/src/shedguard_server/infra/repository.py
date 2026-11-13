@@ -129,6 +129,25 @@ class ImageRepository:
         ).all()
         return [_to_record(row) for row in rows]
 
+    def list_captured_before(self, cutoff: datetime) -> list[ImageRecord]:
+        """取拍摄时间严格早于 `cutoff` 的图片，按时间升序；供保留策略清理。"""
+        moment = cutoff if cutoff.tzinfo is not None else cutoff.replace(tzinfo=UTC)
+        rows = self._session.scalars(
+            select(ImageRow)
+            .where(ImageRow.captured_at_utc < moment.astimezone(UTC).isoformat())
+            .order_by(ImageRow.captured_at_utc, ImageRow.id)
+        ).all()
+        return [_to_record(row) for row in rows]
+
+    def delete(self, image_id: str) -> bool:
+        """删除图片行并提交；调用方需先清理子行与磁盘文件。"""
+        row = self._session.get(ImageRow, image_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True
+
 
 def _to_event(row: ShedEventRow) -> ShedEvent:
     return ShedEvent(
@@ -308,6 +327,12 @@ class FrameMetricRepository:
         ).all()
         return [value for row in rows if (value := row.background_lightness) is not None]
 
+    def delete_for_image(self, image_id: str) -> None:
+        """删除该图的指标行；提交时机由调用方决定（保留策略随后删图片行并提交）。"""
+        row = self._session.get(FrameMetricRow, image_id)
+        if row is not None:
+            self._session.delete(row)
+
 
 def _to_shedding_state(row: SheddingStateRow) -> SheddingState:
     box: tuple[int, int, int, int] | None = None
@@ -393,6 +418,12 @@ class SheddingStateRepository:
             .limit(limit)
         ).all()
         return tuple(row.box_json is not None for row in rows)
+
+    def delete_for_image(self, image_id: str) -> None:
+        """删除该图的状态行；提交时机由调用方决定（保留策略随后删图片行并提交）。"""
+        row = self._session.get(SheddingStateRow, image_id)
+        if row is not None:
+            self._session.delete(row)
 
 
 def _to_pet(row: PetRow) -> Pet:
@@ -695,6 +726,14 @@ class AlertRepository:
             .order_by(AlertRow.delivered_at_utc.desc())
         )
         return _to_alert(row) if row is not None else None
+
+    def clear_image_reference(self, image_id: str) -> None:
+        """图片被保留策略清理时保留提醒历史，只解除对图片的引用。"""
+        rows = self._session.scalars(
+            select(AlertRow).where(AlertRow.image_id == image_id)
+        ).all()
+        for row in rows:
+            row.image_id = None
 
 
 def _to_push_device(row: PushDeviceRow) -> PushDevice:

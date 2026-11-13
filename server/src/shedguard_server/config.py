@@ -25,6 +25,9 @@ DEFAULT_STATE_CROP_PADDING = 0.08
 DEFAULT_EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 DEFAULT_PUSH_TIMEOUT_SECONDS = 5.0
 DEFAULT_ALERT_COOLDOWN_HOURS = 24
+DEFAULT_IMAGE_RETENTION_DAYS = 0
+DEFAULT_RATE_LIMIT_PER_MINUTE = 0
+DEFAULT_RATE_LIMIT_BURST = 60
 
 
 class Settings(BaseSettings):
@@ -84,6 +87,11 @@ class Settings(BaseSettings):
     # 设备的活跃抓拍时段；静默提醒只在这个时段内判定。
     capture_start_hour: int = Field(default=8, ge=0, le=23)
     capture_end_hour: int = Field(default=20, ge=0, le=23)
+    # 照片保留：0 表示永久保留（保持原行为）；大于 0 时后台按天清理过期图片。
+    image_retention_days: int = Field(default=DEFAULT_IMAGE_RETENTION_DAYS, ge=0, le=3650)
+    # 请求速率限制：0 表示关闭；开启后按「客户端 IP + 令牌摘要」分组限流。
+    rate_limit_per_minute: int = Field(default=DEFAULT_RATE_LIMIT_PER_MINUTE, ge=0, le=6000)
+    rate_limit_burst: int = Field(default=DEFAULT_RATE_LIMIT_BURST, ge=1, le=6000)
 
     @field_validator("timezone")
     @classmethod
