@@ -163,6 +163,41 @@ $env:PYTHONPATH="server\src"
 
 净收益约 +1.8 个点，`shedding` 召回 +3.1 个点，且没有拖累 `normal`。提升不大是因为真正干净可用的新图只有 88 张——网络数据量看着大，能用的是少数。**结论：v2 在留出测试集上优于 v1，部署时把 `SHEDGUARD_STATE_MODEL` 指向 `ml/models/gecko-state-v2.onnx` 即可**（两个模型文件都在 `ml/models/`，`labels.json` 同名，服务端不硬编码类别）。
 
+## 状态分类器：Bing 扩图与 v3（2026-11-13，未部署）
+
+为了回答「再多一点图能不能提升召回」，用 Bing 图片搜索又拉了一批：
+
+```powershell
+# 1) 抓图（Bing 异步接口，8 组中英文查询 × 4 页），产物在 data/collected/bing_*/
+#    脚本在 .tmp 里，未入库；元数据落 data/collected/_bing_meta.csv
+# 2) 重新裁剪 + 自动打标（同 v2 第 1 步）
+$env:PYTHONPATH="server\src"
+.\.venv\Scripts\python.exe ml\curate_collected.py
+# 3) 用置信度硬门控并入 train，产出 gecko-state-v3
+.\.venv\Scripts\python.exe ml\build_state_dataset_v3.py
+# 4) 重训
+.\.venv\Scripts\python.exe ml\train_state_classifier.py --name gecko-state-v3 --dataset ml\datasets\gecko-state-v3 --epochs 15
+# 5) 按 p(shedding) 扫阈值，对比两个模型的实际工作点
+.\.venv\Scripts\python.exe ml\eval_state_thresholds.py
+```
+
+**采集与清洗**：元数据 1052 条 → 下载 512 张 → 人工删掉 50 张（重复图、睫角守宫、AI 图、视频封面）→ 再移出 22 张（3D 打印模型、陶土雕塑、扭蛋摆件、游戏截图、图文海报、只有蜕下的皮）→ 剩 **436 张**。
+
+**v3 的标签规则**：不再人工逐张判定，而是用 v1 分类器的概率做硬门控——`p(shedding) ≥ 0.85` 记 shedding、`≤ 0.25` 记 normal，中间灰区（104 张）直接丢掉。最终并入 train **normal 52 / shedding 246**（另有 34 张与现有图 dHash 近重复被剔除），valid/test 原样不动。
+
+**A/B 与阈值扫描（测试集仍为原始 gecko1 的 80 normal / 32 shedding）**：
+
+| 模型 / 阈值 | 测试准确率 | 蜕皮召回 | 蜕皮精确率 | FP / FN |
+|---|---|---|---|---|
+| v2 @ argmax | 0.9286 | 0.8125 | 0.9286 | 2 / 6 |
+| v2 @ p≥0.80 | **0.9464** | 0.8438 | **0.9643** | 1 / 5 |
+| v3 @ argmax(0.5) | 0.9018 | **0.9062** | 0.7838 | 8 / 3 |
+| v3 @ p≥0.80 | 0.9018 | 0.7812 | 0.8621 | 4 / 7 |
+
+**结论：v3 不部署。** 用弱模型（v1）的预测当新数据的标签，等于把 v1 的判断误差直接写进训练集——召回是上去了（0.8125 → 0.9062），但精确率掉到 0.78，意味着正常日里约每 10 天就有 1 天误报。v2 那 88 张是人工逐张看的，虽然少，但标签干净。
+
+**顺带得到的可用结论（阈值）**：v2 在 `p(shedding) ≥ 0.80` 时测试准确率 0.9464、精确率 0.9643 都优于默认 argmax，说明「提醒线」比「分类 argmax」更适合往上提一点。但 P22 已证明模糊越重置信度越高，这条规则在退化图上传不住，所以**暂不改服务端默认值**，等真实机位数据再定（见 `docs/plan.md` §7）。
+
 ## 已知限制
 
 这些限制对两个模型都成立：
