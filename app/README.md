@@ -52,6 +52,7 @@ App 第一次打开会走三步向导（欢迎 → 给守宫起名字 → 准备
 | 提醒详情（记录页进入） | 显示抓拍原图、日期、判定与置信度，打开即标记已读 | `GET /api/v1/images/{id}`、`PATCH /api/v1/alerts/{id}` |
 | 卡皮风险（记录页进入） | 六题问卷 → 风险评分与分级、就医警示 | `POST /api/v1/risk-assessment` |
 | 分享照片（从「我的」进入） | 自愿把手拍到的蜕皮照片分享出来帮我们改进识别：总开关（默认关）+「连整张原图一起发」；显示已分享 / 等待发送张数；列表可逐张撤回；可「立即发送」或「打包成压缩包」 | `GET/PUT /api/v1/contribution-settings`、`GET /api/v1/contributions`、`POST /api/v1/contributions/{id}/withdraw`、`POST /api/v1/contributions/upload-now`、`POST /api/v1/contributions/export` |
+| 摄像头（从「我的」进入） | 列出已接的摄像头与四态状态灯（还没试过 / 正常 / 账号不对 / 连不上），每台可「试试连得上」「现在拍一张」「删掉」；添加页选 RTSP 或萤石云，填完保存后立刻试一次并给出人话结果 | `GET/POST /api/v1/cameras`、`PATCH/DELETE /api/v1/cameras/{id}`、`POST /api/v1/cameras/{id}/test`、`POST /api/v1/cameras/{id}/snapshot` |
 
 ## 目录结构
 
@@ -104,6 +105,9 @@ npx eslint .       # 代码检查
 | `GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` | 蜕皮日志 | 已接 |
 | `GET /api/v1/pets/{id}/shed-prediction` | 下次蜕皮预测（已弃用，App 不再展示） | 保留 |
 | `GET /api/v1/alerts`、`PATCH /api/v1/alerts/{id}` | 蜕皮提醒列表与已读 | 已接 |
+| `GET/POST /api/v1/cameras`、`PATCH/DELETE /api/v1/cameras/{id}` | 摄像头增删改查（配置已脱敏） | 已接 |
+| `POST /api/v1/cameras/{id}/test` | 试连一次，不入库 | 已接 |
+| `POST /api/v1/cameras/{id}/snapshot` | 抓一张入库并走判定流水线 | 已接 |
 | `POST /api/v1/devices`、`DELETE /api/v1/devices/{id}` | 推送设备注册与解绑 | 已接 |
 | `GET /api/v1/knowledge/topics`、`/topics/{slug}` | 知识库 | 已接 |
 | `GET /api/v1/pets/{id}/portraits`、`/portraits/today` | 萌照相册与今日萌照 | 已接 |

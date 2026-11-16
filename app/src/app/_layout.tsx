@@ -79,6 +79,8 @@ export default function RootLayout() {
           <Stack.Screen name="portrait/[id]" options={{ title: '萌照' }} />
           <Stack.Screen name="portrait-settings" options={{ title: '萌照设置' }} />
           <Stack.Screen name="contribution" options={{ title: '分享照片' }} />
+          <Stack.Screen name="cameras" options={{ title: '摄像头' }} />
+          <Stack.Screen name="camera-new" options={{ title: '接一个摄像头' }} />
         </Stack>
       </SafeAreaProvider>
     </QueryClientProvider>
