@@ -219,6 +219,14 @@
 - **顺带**：`& git rev-parse --verify --quiet ref | Out-Null; if ($LASTEXITCODE -eq 0)` 在管道里不可靠，判断远端分支改用 `git show-ref --verify --quiet refs/remotes/origin/<branch>`，并把 `$LASTEXITCODE` 立刻存进变量。
 - **自查**：脚本改完必须跑一遍完整动作（如 `feature-start` + `feature-finish` 全流程），不要只看 `status`。
 
+### 10.4 合并后删不掉 feature 分支：远端还留着旧提交
+
+- **现象**：`feature-finish` 里 `git branch --delete feature/x` 报 `error: the branch 'feature/x' is not fully merged`（并提示 not yet merged to `refs/remotes/origin/feature/x`），脚本中途退出失败——此时**合并已经完成**，只是推送和清理没做完。
+- **根因**：feature 分支推过远端，之后又加了本地提交；`git branch -d` 会拿「分支的上游」当安全基准，而远端上游停在旧提交，故拒绝删除。我们真正的安全基准是「已合并进 develop」。
+- **正确做法**：`feature-finish` / `release-finish` / `hotfix-finish` 里删分支一律用 `git branch --delete --force`（合并到 develop 这一步已经保证了安全性），并在失败后手工补 `git push --set-upstream origin develop`。
+- **顺带**：远端 feature 分支要显式删（`git push origin --delete feature/x`），脚本不会自动清理。
+- **自查**：`git branch -vv` 里 develop 应显示 `[origin/develop]` 且不落后；本地不应残留已合并的 feature 分支。
+
 ---
 
 ## 11. 流程（踩过 2 次）
