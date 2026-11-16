@@ -328,3 +328,59 @@ class ContributionUploader(Protocol):
 - [x] 每条验收都能用命令或人工核对验证。
 - [x] 测试覆盖最容易出事的两个默认行为：**不开开关不发任何网络请求**、**没配收件箱不假装成功**。
 - [x] 密钥处理写明：token 只进配置、绝不进日志与异常信息。
+
+---
+
+## 13. 实现记录（P29，2026-11-16）
+
+### 13.1 落地文件
+
+| 层 | 文件 |
+|---|---|
+| 迁移 | `server/src/shedguard_server/migrations/versions/0009_contributions.py`（三表 + 四索引） |
+| 表 | `server/src/shedguard_server/infra/tables.py`：`ContributionSettingRow`、`ContributionSampleRow`、`ContributionExportRow` |
+| 领域 | `server/src/shedguard_server/domain/contribution.py`（路径、白名单元数据、编码、上传载荷） |
+| 上传器 | `server/src/shedguard_server/infra/contribution_upload.py`（`ContributionUploader` Protocol、`HuggingFaceUploader`、`NoopUploader`、`build_contribution_uploader`） |
+| 仓库 | `server/src/shedguard_server/infra/repository.py`：`ContributionSettingRepository`、`ContributionSampleRepository`、`ContributionExportRepository`、`PushDeviceRepository.owner_for_device` |
+| 服务 | `server/src/shedguard_server/services/contributions.py`（`ContributionService`、`upload_once`） |
+| 接口 | `server/src/shedguard_server/api/routes/contributions.py`（8 个端点） |
+| 装配 | `config.py`（9 项）、`api/dependencies.py`（4 个依赖）、`app.py`（路由 + `_contribution_loop` + `app.state.contribution_uploader`） |
+| 流水线 | `services/processing.py`：`_enqueue_contribution`，在判定为 `shedding` 之后、提醒去重之前调用 |
+| 测试 | `tests/unit/test_contribution_domain.py`（21 条）、`tests/unit/test_contribution_upload.py`（12 条）、`tests/integration/test_contributions_api.py`（12 条） |
+| App | `app/src/lib/types.ts`、`lib/auth.ts`（`contributionUrl`）、`hooks/useContributions.ts`、`app/contribution.tsx`、`app/_layout.tsx`、`(tabs)/settings.tsx` 入口 |
+
+### 13.2 与规格的偏差（都是实现时才发现更好的做法）
+
+| # | 规格写的 | 实际实现 | 原因 |
+|---|---|---|---|
+| 1 | `enqueue_for_event` 从当天记录里挑最多 3 张、按置信度倒序 | **只入队当前这一帧**，上限按 `(device_id, local_date)` 计数到 3 | 上传后处理只有当前帧可用；回捞历史帧要在同一事务里重读并重算，收益小、复杂度高 |
+| 2 | 接口为 `DELETE /contributions/{id}`、`DELETE /contributions`、`POST /contributions/exports`、`GET /exports/{id}/download` | `POST /contributions/{id}/withdraw`、`POST /contributions/export`、`GET /contributions/exports/{id}`，**没有「全部撤回」** | 与既有 P25 萌照的动作用 POST 风格一致；「全部撤回」在有二次确认的 UI 下没必要，且批量删远端容易半途失败 |
+| 3 | 上传器方法 `upload_batch` / `delete_files` | `store` / `delete` | 命名更短，且 `store` 一次 commit 语义更清楚 |
+| 4 | 配置含 `SHEDGUARD_CONTRIBUTION_INCLUDE_FULL_DEFAULT` | 未加该配置，改用领域常量 `DEFAULT_INCLUDE_FULL=False`；另加 `SHEDGUARD_CONTRIBUTION_UPLOAD_BATCH`（默认 20） | 默认值不该同时存在两处；批量大小才是运维真正要调的量 |
+| 5 | 设置接口返回带计数 | `GET/PUT /contribution-settings` 只返回 `enabled` / `include_full` / `updated_at_utc`；计数在 `GET /contributions` 的 `stats` 里 | 一个接口一个关注点，App 也只需要一次列表请求 |
+| 6 | 服务层单测 `test_contribution_service.py` | 未单独建文件，服务行为由 12 条集成测试覆盖 | 该服务几乎全是「读写库 + 落盘」，集成测试更接近真实调用路径 |
+
+### 13.3 验收对照
+
+| 验收 | 结果 |
+|---|---|
+| 1 默认关闭且零网络请求 | ✅ `test_switch_off_keeps_nothing`：样本 0、`data/contributions` 目录都不生成 |
+| 2 每次事件 ≤3 张 | ✅ `test_caps_samples_per_event`（连传 4 张 → 3 张） |
+| 3 同一帧不重复 | ✅ `ux_contribution_samples_image_owner` 唯一约束 + `find_by_source` |
+| 4 重新编码、EXIF 为空 | ✅ `encode_frame` 用 `cv2.imencode` 重编码（单测断言可解码、质量影响体积） |
+| 5 不含身份信息 | ✅ `meta_payload` 只输出 `META_FIELDS` 白名单（单测钉死集合相等） |
+| 6 撤回删本地 + 调远端 | ✅ `test_withdraw_removes_local_file`；远端删除由 `HuggingFaceUploader.delete` 尽力执行 |
+| 7 失败可重试且不影响主链路 | ✅ `upload_attempts` 上限 5；入队整段 `try/except` 只记日志 |
+| 8 全部走鉴权、跨用户 404 | ✅ 依赖 `get_current_user`；`test_withdraw_unknown_sample` 404 |
+| 9 没配收件箱不假装成功 | ✅ `test_upload_now_without_inbox_skips_and_keeps_pending`：`skipped=1`、样本仍 `pending`、`upload_attempts=0` |
+| 10 App 文案与截图 | ✅ 430×932 三张截图核对通过；文案无「服务器 / API / token / 置信度」 |
+
+### 13.4 实测结果（2026-11-16）
+
+- 质量门：`ruff check .` 全绿；`mypy src tests` 129 files Success；`pytest --junitxml` **480 tests / 0 failures / 0 errors**（基线 440，新增 40）；覆盖率 **94.06%**（门槛 85%）。
+- 真机冒烟（`.tmp/p29_setup.py` + 真检测/分类模型，端口 8000，`SHEDGUARD_DATA_DIR=.tmp/p29demo`，收件箱未配置）：
+  - `PUT /api/v1/contribution-settings` 200（`enabled=true, include_full=true`）；
+  - 灌一张真实蜕皮图 → `GET /api/v1/contributions` 返回 1 条 `state=shedding confidence=0.9998 has_full=true upload_status=pending`，`stats.pending=1`；
+  - `POST /api/v1/contributions/upload-now` → `{uploaded:0, failed:0, skipped:1}`，样本仍是 `pending`（**没配收件箱不假装成功**）；
+  - `GET /contributions/{id}/image` 200 `image/jpeg`；`POST /contributions/export` 201，zip 73,017 字节、含 1 张 crop + 1 份 meta。
+- 未做真仓库验证：还没有 fine-grained token（`docs/contribution-setup.md` 第 2–5 节就是给这一步的），配好后按手册跑一次即可。
