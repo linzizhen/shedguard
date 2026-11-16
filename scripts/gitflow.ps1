@@ -104,7 +104,7 @@ switch ($Action) {
         $branch = "feature/$Name"
         Sync-From $DevelopBranch
         Invoke-Git merge --no-ff $branch --message "merge: feature/$Name"
-        Invoke-Git branch --delete $branch
+        Invoke-Git branch --delete --force $branch
         Invoke-Git push --set-upstream origin $DevelopBranch
         Write-Output "feature/$Name 已合并进 $DevelopBranch 并推送。"
     }
@@ -128,7 +128,7 @@ switch ($Action) {
         Invoke-Git tag --annotate "v$Version" --message "v$Version"
         Invoke-Git switch $DevelopBranch
         Invoke-Git merge --no-ff $branch --message "merge: release/$Version 回到 $DevelopBranch"
-        Invoke-Git branch --delete $branch
+        Invoke-Git branch --delete --force $branch
         Invoke-Git push --set-upstream origin $DevelopBranch
         Invoke-Git push origin $MainBranch --tags
         Write-Output "v$Version 已发布：$MainBranch 与 $DevelopBranch 都已推送，标签已带上。"
@@ -152,7 +152,7 @@ switch ($Action) {
         Invoke-Git tag --annotate "v$Version" --message "v$Version"
         Invoke-Git switch $DevelopBranch
         Invoke-Git merge --no-ff $branch --message "merge: hotfix/$Version 回到 $DevelopBranch"
-        Invoke-Git branch --delete $branch
+        Invoke-Git branch --delete --force $branch
         Invoke-Git push --set-upstream origin $DevelopBranch
         Invoke-Git push origin $MainBranch --tags
         Write-Output "热修 v$Version 已发布并回灌 $DevelopBranch。"
