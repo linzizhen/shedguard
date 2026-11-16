@@ -10,6 +10,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from shedguard_server.domain.alerts import Alert, PushDevice
+from shedguard_server.domain.contribution import (
+    MAX_UPLOAD_ATTEMPTS,
+    RETRYABLE_STATUSES,
+    ContributionExport,
+    ContributionSample,
+    ContributionSetting,
+)
 from shedguard_server.domain.models import (
     FrameMetric,
     ImageRecord,
@@ -25,6 +32,9 @@ from shedguard_server.domain.portrait import (
 from shedguard_server.domain.user import User
 from shedguard_server.infra.tables import (
     AlertRow,
+    ContributionExportRow,
+    ContributionSampleRow,
+    ContributionSettingRow,
     FrameMetricRow,
     ImageRow,
     PetRow,
@@ -863,6 +873,16 @@ class PushDeviceRepository:
         )
         return row.device_id if row is not None else None
 
+    def owner_for_device(self, device_id: str) -> str | None:
+        """取该设备号背后的账号；用于把上传事件算到某个用户名下。"""
+        row = self._session.scalar(
+            select(PushDeviceRow).where(
+                PushDeviceRow.device_id == device_id,
+                PushDeviceRow.owner_id.is_not(None),
+            )
+        )
+        return row.owner_id if row is not None else None
+
 
 def _to_portrait_setting(row: PortraitSettingRow) -> PortraitSetting:
     return PortraitSetting(
@@ -1102,3 +1122,244 @@ class PortraitFeedbackRepository:
             .order_by(PortraitFeedbackRow.created_at_utc)
         ).all()
         return [_to_portrait_feedback(row) for row in rows]
+
+
+def _to_contribution_setting(row: ContributionSettingRow) -> ContributionSetting:
+    return ContributionSetting(
+        owner_id=row.owner_id,
+        enabled=row.enabled,
+        include_full=row.include_full,
+        created_at_utc=_parse_utc(row.created_at_utc),
+        updated_at_utc=_parse_utc(row.updated_at_utc),
+    )
+
+
+def _to_contribution_sample(row: ContributionSampleRow) -> ContributionSample:
+    return ContributionSample(
+        id=row.id,
+        owner_id=row.owner_id,
+        device_id=row.device_id,
+        pet_id=row.pet_id,
+        source_image_id=row.source_image_id,
+        state=row.state,
+        confidence=row.confidence,
+        local_date=date.fromisoformat(row.local_date),
+        crop_rel_path=row.crop_rel_path,
+        full_rel_path=row.full_rel_path,
+        sha256=row.sha256,
+        upload_status=row.upload_status,
+        upload_attempts=row.upload_attempts,
+        remote_crop_path=row.remote_crop_path,
+        remote_full_path=row.remote_full_path,
+        uploaded_at_utc=(
+            _parse_utc(row.uploaded_at_utc) if row.uploaded_at_utc is not None else None
+        ),
+        created_at_utc=_parse_utc(row.created_at_utc),
+    )
+
+
+def _to_contribution_sample_row(sample: ContributionSample) -> ContributionSampleRow:
+    return ContributionSampleRow(
+        id=sample.id,
+        owner_id=sample.owner_id,
+        device_id=sample.device_id,
+        pet_id=sample.pet_id,
+        source_image_id=sample.source_image_id,
+        state=sample.state,
+        confidence=sample.confidence,
+        local_date=sample.local_date.isoformat(),
+        crop_rel_path=sample.crop_rel_path,
+        full_rel_path=sample.full_rel_path,
+        sha256=sample.sha256,
+        upload_status=sample.upload_status,
+        upload_attempts=sample.upload_attempts,
+        remote_crop_path=sample.remote_crop_path,
+        remote_full_path=sample.remote_full_path,
+        uploaded_at_utc=(
+            sample.uploaded_at_utc.isoformat() if sample.uploaded_at_utc is not None else None
+        ),
+        created_at_utc=sample.created_at_utc.isoformat(),
+    )
+
+
+def _to_contribution_export(row: ContributionExportRow) -> ContributionExport:
+    return ContributionExport(
+        id=row.id,
+        owner_id=row.owner_id,
+        filename=row.filename,
+        rel_path=row.rel_path,
+        sample_count=row.sample_count,
+        byte_size=row.byte_size,
+        created_at_utc=_parse_utc(row.created_at_utc),
+    )
+
+
+class ContributionSettingRepository:
+    """contribution_settings 表的读写；每个账号最多一行。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, owner_id: str) -> ContributionSetting | None:
+        row = self._session.get(ContributionSettingRow, owner_id)
+        return _to_contribution_setting(row) if row is not None else None
+
+    def upsert(self, setting: ContributionSetting) -> ContributionSetting:
+        row = self._session.get(ContributionSettingRow, setting.owner_id)
+        if row is None:
+            self._session.add(
+                ContributionSettingRow(
+                    owner_id=setting.owner_id,
+                    enabled=setting.enabled,
+                    include_full=setting.include_full,
+                    created_at_utc=setting.created_at_utc.isoformat(),
+                    updated_at_utc=setting.updated_at_utc.isoformat(),
+                )
+            )
+        else:
+            row.enabled = setting.enabled
+            row.include_full = setting.include_full
+            row.updated_at_utc = setting.updated_at_utc.isoformat()
+        self._session.commit()
+        return setting
+
+
+class ContributionSampleRepository:
+    """contribution_samples 表的读写。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, sample_id: str) -> ContributionSample | None:
+        row = self._session.get(ContributionSampleRow, sample_id)
+        return _to_contribution_sample(row) if row is not None else None
+
+    def find_by_source(self, source_image_id: str, owner_id: str) -> ContributionSample | None:
+        row = self._session.scalar(
+            select(ContributionSampleRow).where(
+                ContributionSampleRow.source_image_id == source_image_id,
+                ContributionSampleRow.owner_id == owner_id,
+            )
+        )
+        return _to_contribution_sample(row) if row is not None else None
+
+    def add(self, sample: ContributionSample) -> ContributionSample:
+        self._session.add(_to_contribution_sample_row(sample))
+        self._session.commit()
+        return sample
+
+    def update(self, sample: ContributionSample) -> ContributionSample:
+        row = self._session.get(ContributionSampleRow, sample.id)
+        if row is None:
+            return self.add(sample)
+        row.upload_status = sample.upload_status
+        row.upload_attempts = sample.upload_attempts
+        row.remote_crop_path = sample.remote_crop_path
+        row.remote_full_path = sample.remote_full_path
+        row.uploaded_at_utc = (
+            sample.uploaded_at_utc.isoformat() if sample.uploaded_at_utc is not None else None
+        )
+        self._session.commit()
+        return sample
+
+    def count_for_event(self, device_id: str, local_date: date) -> int:
+        """这次事件（同一设备同一天）已经攒了多少张——用来卡「每次最多 3 张」。"""
+        return (
+            self._session.scalar(
+                select(func.count())
+                .select_from(ContributionSampleRow)
+                .where(
+                    ContributionSampleRow.device_id == device_id,
+                    ContributionSampleRow.local_date == local_date.isoformat(),
+                )
+            )
+            or 0
+        )
+
+    def count_for_owner(self, owner_id: str) -> int:
+        return (
+            self._session.scalar(
+                select(func.count())
+                .select_from(ContributionSampleRow)
+                .where(ContributionSampleRow.owner_id == owner_id)
+            )
+            or 0
+        )
+
+    def count_pending(self, owner_id: str | None = None) -> int:
+        conditions: list[ColumnElement[bool]] = [
+            ContributionSampleRow.upload_status.in_(tuple(RETRYABLE_STATUSES))
+        ]
+        if owner_id is not None:
+            conditions.append(ContributionSampleRow.owner_id == owner_id)
+        return (
+            self._session.scalar(
+                select(func.count()).select_from(ContributionSampleRow).where(*conditions)
+            )
+            or 0
+        )
+
+    def list_pending(self, *, limit: int) -> list[ContributionSample]:
+        """按创建顺序取还能再试的上传项；超过重试上限的一律不再挑出来。"""
+        rows = self._session.scalars(
+            select(ContributionSampleRow)
+            .where(
+                ContributionSampleRow.upload_status.in_(tuple(RETRYABLE_STATUSES)),
+                ContributionSampleRow.upload_attempts < MAX_UPLOAD_ATTEMPTS,
+            )
+            .order_by(ContributionSampleRow.created_at_utc)
+            .limit(limit)
+        ).all()
+        return [_to_contribution_sample(row) for row in rows]
+
+    def list_for_owner(self, owner_id: str, *, limit: int) -> list[ContributionSample]:
+        rows = self._session.scalars(
+            select(ContributionSampleRow)
+            .where(ContributionSampleRow.owner_id == owner_id)
+            .order_by(ContributionSampleRow.created_at_utc.desc())
+            .limit(limit)
+        ).all()
+        return [_to_contribution_sample(row) for row in rows]
+
+    def delete(self, sample_id: str) -> bool:
+        row = self._session.get(ContributionSampleRow, sample_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True
+
+
+class ContributionExportRepository:
+    """contribution_exports 表的读写。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, export_id: str) -> ContributionExport | None:
+        row = self._session.get(ContributionExportRow, export_id)
+        return _to_contribution_export(row) if row is not None else None
+
+    def add(self, export: ContributionExport) -> ContributionExport:
+        self._session.add(
+            ContributionExportRow(
+                id=export.id,
+                owner_id=export.owner_id,
+                filename=export.filename,
+                rel_path=export.rel_path,
+                sample_count=export.sample_count,
+                byte_size=export.byte_size,
+                created_at_utc=export.created_at_utc.isoformat(),
+            )
+        )
+        self._session.commit()
+        return export
+
+    def list_for_owner(self, owner_id: str, *, limit: int) -> list[ContributionExport]:
+        rows = self._session.scalars(
+            select(ContributionExportRow)
+            .where(ContributionExportRow.owner_id == owner_id)
+            .order_by(ContributionExportRow.created_at_utc.desc())
+            .limit(limit)
+        ).all()
+        return [_to_contribution_export(row) for row in rows]

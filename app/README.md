@@ -51,6 +51,7 @@ App 第一次打开会走三步向导（欢迎 → 给守宫起名字 → 准备
 | 蜕皮知识（从「我的」进入） | 六个话题卡片与详情 | `GET /api/v1/knowledge/topics[/{slug}]` |
 | 提醒详情（记录页进入） | 显示抓拍原图、日期、判定与置信度，打开即标记已读 | `GET /api/v1/images/{id}`、`PATCH /api/v1/alerts/{id}` |
 | 卡皮风险（记录页进入） | 六题问卷 → 风险评分与分级、就医警示 | `POST /api/v1/risk-assessment` |
+| 分享照片（从「我的」进入） | 自愿把手拍到的蜕皮照片分享出来帮我们改进识别：总开关（默认关）+「连整张原图一起发」；显示已分享 / 等待发送张数；列表可逐张撤回；可「立即发送」或「打包成压缩包」 | `GET/PUT /api/v1/contribution-settings`、`GET /api/v1/contributions`、`POST /api/v1/contributions/{id}/withdraw`、`POST /api/v1/contributions/upload-now`、`POST /api/v1/contributions/export` |
 
 ## 目录结构
 
@@ -74,9 +75,10 @@ app/
 │   │   ├── portraits.tsx       # 萌照相册（按日期三列网格）
 │   │   ├── portrait-settings.tsx # 萌照设置（开关、每天张数、起止时间）
 │   │   ├── topic/[slug].tsx    # 知识详情
-│   │   └── risk.tsx            # 卡皮风险评估问卷
+│   │   ├── risk.tsx            # 卡皮风险评估问卷
+│   │   └── contribution.tsx    # 分享照片（数据贡献开关、列表、撤回、导出）
 │   ├── components/             # ui.tsx 黏土风基础件、PetForm、PetPicker
-│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts / usePortraits）
+│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts / usePortraits / useContributions）
 │   └── lib/                    # theme / api / auth / serverUrl / deviceId / onboarding / resultCopy / types / dates
 ├── app.json                    # Expo 配置（CNG，勿手建 ios/android）
 └── tsconfig.json               # strict + @/* 路径别名
@@ -109,6 +111,12 @@ npx eslint .       # 代码检查
 | `POST /api/v1/portraits/{id}/feedback` | 萌照反馈（`like` / `skip` / `crop_head`） | 已接 |
 | `GET /api/v1/portraits/{id}/image` | 萌照成品图（`?token=` 传令牌，`<Image>` 不能带头） | 已接 |
 | `POST /api/v1/risk-assessment` | 卡皮风险评估 | 已接 |
+| `GET/PUT /api/v1/contribution-settings` | 数据贡献开关（默认关，用户自愿打开） | 已接 |
+| `GET /api/v1/contributions` | 已分享列表与统计 | 已接 |
+| `GET /api/v1/contributions/{id}/image?full=` | 已分享照片的本地缩略图（`?token=`） | 已接 |
+| `POST /api/v1/contributions/{id}/withdraw` | 撤回某一张（本地删除 + 尽力删远端） | 已接 |
+| `POST /api/v1/contributions/export`、`GET /api/v1/contributions/exports/{id}` | 打包 zip 留档并下载 | 已接 |
+| `POST /api/v1/contributions/upload-now` | 手动催一次上传；未配收件箱时返回 `skipped` | 已接 |
 
 ## 调试与预览
 
@@ -126,3 +134,5 @@ npx eslint .       # 代码检查
 - 周期预测已下线（`shed-prediction` 接口保留但 App 不再使用）
 - 萌照：V1 只保证「近景优先」，不保证是头部特写（头部检测器还没训）；「不太满意」只记反馈、不会立刻换一张（同一天同一槽位只有一张）；界面还没有手动框选头部的入口（接口已支持 `crop_head`）
 - 萌照默认开启、每天 1 张；一天多张时只有第一张会推系统通知，其余只在列表里可见
+- 分享照片默认关闭；打开后是**自动上传**（不需要用户逐张操作），一次蜕皮最多 3 张；撤回只保证删本地与尽力删远端；只有裁剪特写会重新编码，整张原图是可选
+- 分享照片需要服务端配好收件箱（`docs/contribution-setup.md`）；没配时照片留在本机标「等着发送」，界面会明说，不会假装成功

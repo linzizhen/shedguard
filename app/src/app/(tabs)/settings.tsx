@@ -160,6 +160,16 @@ export default function ProfileScreen() {
       </Pressable>
 
       <Pressable
+        onPress={() => router.push('/contribution')}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Ionicons name="heart-outline" size={20} color={colors.primaryDark} />
+        <Text style={styles.linkText}>分享照片，帮到别的守宫</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </Pressable>
+
+      <Pressable
         onPress={() => router.push('/knowledge')}
         accessibilityRole="button"
         style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}

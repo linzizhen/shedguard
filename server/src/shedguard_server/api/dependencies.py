@@ -15,8 +15,12 @@ from shedguard_server.domain.shedding import StateClassifier
 from shedguard_server.domain.user import User
 from shedguard_server.errors import UnauthorizedError
 from shedguard_server.infra.auth import hash_token
+from shedguard_server.infra.contribution_upload import ContributionUploader
 from shedguard_server.infra.repository import (
     AlertRepository,
+    ContributionExportRepository,
+    ContributionSampleRepository,
+    ContributionSettingRepository,
     FrameMetricRepository,
     ImageRepository,
     PetRepository,
@@ -112,6 +116,29 @@ def get_portrait_setting_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> PortraitSettingRepository:
     return PortraitSettingRepository(session)
+
+
+def get_contribution_setting_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ContributionSettingRepository:
+    return ContributionSettingRepository(session)
+
+
+def get_contribution_sample_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ContributionSampleRepository:
+    return ContributionSampleRepository(session)
+
+
+def get_contribution_export_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ContributionExportRepository:
+    return ContributionExportRepository(session)
+
+
+def get_contribution_uploader(request: Request) -> ContributionUploader:
+    uploader: ContributionUploader = request.app.state.contribution_uploader
+    return uploader
 
 
 def get_current_user(

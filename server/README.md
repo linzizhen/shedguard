@@ -21,6 +21,12 @@
 - M6（判定层）：稳健 Z 分数、方向性判定、告警状态与趋势端点——已完成。
 - M7（蜕皮状态识别）：定位 + 独立分类器、四态判定、每日投票聚合、事件由状态转换推导——已完成，分类模型为二态占位。
 - M8（App 配套接口）：宠物档案、手动蜕皮日志、下一次蜕皮预测、拍照查验聚合、护理知识库、卡皮风险评估——已完成。
+- P8/P9（提醒链路）：上传后自动流水线、蜕皮跃迁提醒、Expo 推送、设备与提醒接口——已完成。
+- P16（账号与隔离）：匿名账号令牌、宠物按用户隔离、图片 `?token=` 访问——已完成。
+- P17（设备健康兜底）：设备静默与连续未检出提醒——已完成。
+- P22–P24（工程加固）：鲁棒性标定、照片保留策略、请求限流（后两者默认关闭）——已完成。
+- P25（萌照）：每日自动近景选片与成品图——已完成。
+- P29（数据贡献）：自愿分享、自动上传到私有收件箱、撤回与打包——已完成。当前 52 个配置项、480 个测试、覆盖率 94.06%。
 
 ## 运行
 
@@ -422,6 +428,41 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 - 成品图是二次编码的 JPEG，不能当证据图；原图仍按原样保存在 `data/images/`。
 - 后台任务每 `SHEDGUARD_PORTRAIT_SCAN_MINUTES`（默认 10）分钟扫一次；`SHEDGUARD_PORTRAIT_ENABLED=false` 可整体关闭。
 
+### 数据贡献（自愿分享）
+
+默认**关闭**。用户在 App 里打开开关后，服务端会把每次判为「正在蜕皮」的那张图裁出特写（可选连整张原图），在后台批量上传到开发者自己的私有收件箱（默认是 HuggingFace 数据集仓库）。目的只有一个：把真实饲养箱里的照片攒起来，用于域适应与后续蒙白样本。
+
+要点：
+
+- **不开开关不采集**：连数据库行都不写，也不发任何网络请求。
+- **每次蜕皮最多 3 张**（`SHEDGUARD_CONTRIBUTION_PER_EVENT_LIMIT`），同一天同一设备计数到上限就停。
+- **重新编码**：上传前一律用 `cv2.imencode` 重编码，顺带丢掉 EXIF/GPS。
+- **不含身份信息**：远端路径是 `sha256(设备号)[:12]/日期/sha256(图)[:12].jpg`，元数据只允许 7 个白名单字段（`sha12 / state / confidence / local_date / has_full / width / height`），不含宠物名、用户 id、设备号原值、原文件名。
+- **撤回**：删本地文件 + 尽力删远端（HF 提交历史里可能仍留有旧版本，见规格第 10 节）。
+- **没配收件箱不假装成功**：收件箱未配置时上传器是 `NoopUploader`，样本留在本地标 `pending`，`upload-now` 返回 `skipped`。
+
+接口（`prefix="/api/v1"`，全部走鉴权）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/contribution-settings` | 读开关（无记录时返回 `enabled=false, include_full=false`） |
+| PUT | `/contribution-settings` | 改 `enabled` / `include_full` |
+| GET | `/contributions?limit=` | 已分享列表 + `stats`（total / pending / uploaded / failed / withdrawn） |
+| GET | `/contributions/{sample_id}/image?full=&token=` | 本地缩略图或整图（`?token=` 供 RN `<Image>`） |
+| POST | `/contributions/{sample_id}/withdraw` | 撤回这一张（删本地 + 尽力删远端） |
+| POST | `/contributions/export` | 打包 zip 留档，201 |
+| GET | `/contributions/exports/{export_id}` | 下载 zip |
+| POST | `/contributions/upload-now` | 手动催一次上传，返回 `{uploaded, failed, skipped}` |
+
+流程与接线：
+
+1. `services/processing.py` 在判定为 `shedding` 之后、提醒去重之前调用 `_enqueue_contribution`（整段 `try/except` 只记日志，**贡献功能绝不影响蜕皮检测**）；
+2. 入队时按检测框裁剪（外扩 `SHEDGUARD_CONTRIBUTION_CROP_PADDING`）、重编码、写 `data/contributions/<owner>/crop/<sha12>.jpg`；
+3. 后台循环每 `SHEDGUARD_CONTRIBUTION_UPLOAD_MINUTES`（默认 30）分钟跑一次 `upload_once`，把 `pending`（及未超次数的 `failed`）样本按 `SHEDGUARD_CONTRIBUTION_UPLOAD_BATCH` 分批提交；
+4. 上传失败 `upload_attempts += 1`，达到 5 次标 `failed` 不再重试。
+
+配置收件箱的完整步骤见 `docs/contribution-setup.md`。
+
 ### App 接口错误码补充
 
 | 码 | 状态 | 触发场景 |
@@ -513,6 +554,15 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_PORTRAIT_MIN_DETECTOR_CONFIDENCE` | `0.45` | 检测置信度下限（0–1） |
 | `SHEDGUARD_PORTRAIT_MAX_OUTPUT_PX` | `640` | 成品图最长边（128–2048） |
 | `SHEDGUARD_PORTRAIT_JPEG_QUALITY` | `88` | 成品图 JPEG 质量（40–100） |
+| `SHEDGUARD_CONTRIBUTION_ENABLED` | `true` | 数据贡献功能是否可用（用户侧开关默认仍是关） |
+| `SHEDGUARD_CONTRIBUTION_PER_EVENT_LIMIT` | `3` | 每次蜕皮最多留几张（1–10） |
+| `SHEDGUARD_CONTRIBUTION_MAX_PENDING` | `200` | 待上传样本上限（10–5000） |
+| `SHEDGUARD_CONTRIBUTION_CROP_PADDING` | `0.08` | 贡献图裁剪外扩比例（0–0.3） |
+| `SHEDGUARD_CONTRIBUTION_UPLOAD_ENABLED` | `false` | 是否真的把样本传到收件箱 |
+| `SHEDGUARD_CONTRIBUTION_UPLOAD_REPO` | 空 | 收件箱仓库（私有 HuggingFace 数据集） |
+| `SHEDGUARD_CONTRIBUTION_UPLOAD_TOKEN` | 空 | 只对该仓库有写权限的 token（密钥） |
+| `SHEDGUARD_CONTRIBUTION_UPLOAD_MINUTES` | `30` | 上传循环间隔（分钟，1–1440） |
+| `SHEDGUARD_CONTRIBUTION_UPLOAD_BATCH` | `20` | 单批提交文件数（1–200） |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 
@@ -522,6 +572,9 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 <DATA_DIR>/
   shedguard.db
   images/YYYY-MM-DD/<device_id>/HHMMSS_<sha8>.<jpg|png>
+  contributions/<owner_id>/crop/<sha12>.jpg
+  contributions/<owner_id>/full/<sha12>.jpg
+  exports/contribution-<时间戳>-<6hex>.zip
 ```
 
 文件先写同目录临时文件再原子重命名；路径完全由服务端生成，不接受客户端指定。

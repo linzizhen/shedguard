@@ -308,3 +308,81 @@ class PortraitFeedbackRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"PortraitFeedbackRow(id={self.id!r}, kind={self.kind!r})"
+
+
+class ContributionSettingRow(Base):
+    """一个用户的「帮助改进识别」偏好；没这行时按默认值（关闭）处理。"""
+
+    __tablename__ = "contribution_settings"
+
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), primary_key=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    include_full: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"ContributionSettingRow(owner_id={self.owner_id!r}, enabled={self.enabled!r})"
+
+
+class ContributionSampleRow(Base):
+    """一张待分享/已分享的照片；同一帧对同一用户只入队一次。"""
+
+    __tablename__ = "contribution_samples"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    pet_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("pets.id"), nullable=True
+    )
+    source_image_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("images.id"), nullable=False
+    )
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    local_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    crop_rel_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_rel_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    upload_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    upload_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    remote_crop_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    remote_full_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    uploaded_at_utc: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_image_id", "owner_id", name="ux_contribution_samples_image_owner"
+        ),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return (
+            f"ContributionSampleRow(id={self.id!r}, status={self.upload_status!r}, "
+            f"date={self.local_date!r})"
+        )
+
+
+class ContributionExportRow(Base):
+    """本地打包留档（离线补交/排查用，不是主通路）。"""
+
+    __tablename__ = "contribution_exports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(128), nullable=False)
+    rel_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return f"ContributionExportRow(id={self.id!r}, filename={self.filename!r})"

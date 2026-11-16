@@ -34,6 +34,7 @@ from shedguard_server.errors import (
     UnauthorizedError,
 )
 from shedguard_server.infra.auth import hash_token
+from shedguard_server.infra.contribution_upload import ContributionUploader
 from shedguard_server.infra.repository import ImageRepository, UserRepository
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.ingest import IngestService
@@ -117,6 +118,7 @@ async def upload_image(
     )
     if not outcome.duplicate and settings.auto_process:
         gateway: PushGateway = request.app.state.push_gateway
+        uploader: ContributionUploader = request.app.state.contribution_uploader
         background_tasks.add_task(
             process_image,
             session_factory=request.app.state.session_factory,
@@ -125,6 +127,7 @@ async def upload_image(
             classifier=classifier,
             storage=storage,
             gateway=gateway,
+            contribution_uploader=uploader,
             image_id=outcome.record.id,
         )
     body = {**_serialize(outcome.record), "duplicate": outcome.duplicate}

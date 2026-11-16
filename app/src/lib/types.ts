@@ -185,3 +185,57 @@ export interface PortraitFeedbackInput {
   kind: PortraitFeedbackKind;
   crop_box?: number[];
 }
+
+// ---------- 数据贡献（/api/v1/contribution-settings、/api/v1/contributions） ----------
+
+export type ContributionStatus = 'pending' | 'uploaded' | 'failed' | 'withdrawn';
+
+export interface ContributionSetting {
+  enabled: boolean;
+  include_full: boolean;
+  updated_at_utc: string;
+}
+
+export interface ContributionSettingsInput {
+  enabled: boolean;
+  include_full: boolean;
+}
+
+export interface ContributionSample {
+  id: string;
+  local_date: string;
+  state: ShedState;
+  confidence: number | null;
+  has_full: boolean;
+  upload_status: ContributionStatus;
+  upload_attempts: number;
+  uploaded_at_utc: string | null;
+  created_at_utc: string;
+}
+
+export interface ContributionStats {
+  total: number;
+  pending: number;
+  uploaded: number;
+  failed: number;
+  withdrawn: number;
+}
+
+export interface ContributionListResponse {
+  items: ContributionSample[];
+  stats: ContributionStats;
+}
+
+export interface ContributionExport {
+  id: string;
+  filename: string;
+  sample_count: number;
+  byte_size: number;
+  created_at_utc: string;
+}
+
+export interface ContributionUploadSummary {
+  uploaded: number;
+  failed: number;
+  skipped: number;
+}
