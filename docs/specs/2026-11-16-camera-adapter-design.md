@@ -151,3 +151,56 @@ class CameraError(Exception):
 4. **画面与训练集不同分布**：广角鱼眼、夜视红外、玻璃反光、俯视角度都是新分布，P22 的组合退化召回只有 0.6374，真实表现待 P31 验证。
 5. **凭据安全**：`SECRET_KEY` 泄露等于用户摄像头密码泄露；文档要求单机生成、不进仓库、可轮换。
 6. **多品牌成本**：每接一个厂商都要读文档 + 申请 + 适配 + 维护，第二个品牌之前应先用 P31 验证需求是否成立。
+
+## 13. 实现记录（2026-11-16）
+
+### 13.1 落地文件
+
+| 层 | 文件 | 内容 |
+|---|---|---|
+| 领域 | `server/src/shedguard_server/domain/camera.py` | 适配器契约、错误分类、配置拆分与脱敏、设备编号映射 |
+| 持久化 | `server/src/shedguard_server/infra/tables.py` | `CameraRow` |
+| 迁移 | `server/src/shedguard_server/migrations/versions/0010_cameras.py` | `0010`，`cameras` 表 + 两个索引 |
+| 持久化 | `server/src/shedguard_server/infra/repository.py` | `CameraRepository`（get / list_for_owner / list_enabled / add / save / delete） |
+| 基础设施 | `server/src/shedguard_server/infra/crypto.py` | Fernet 封装；没配密钥时用 `NullSecretBox` 拒绝保存密码 |
+| 基础设施 | `server/src/shedguard_server/infra/camera_sources.py` | `RtspSource`、`EzvizSource`、`build_camera_source`、带硬超时的抓帧 |
+| 服务 | `server/src/shedguard_server/services/cameras.py` | 增删改查、`test`、`snapshot`、`poll_once` 调度与离线提醒 |
+| 接口 | `server/src/shedguard_server/api/routes/cameras.py` | 6 个端点，配置脱敏后返回 |
+| 装配 | `server/src/shedguard_server/app.py`、`config.py`、`dependencies.py` | `_camera_loop`、5 项配置、仓库依赖 |
+| 测试 | `tests/unit/test_camera_domain.py`、`tests/unit/test_camera_sources.py`、`tests/integration/test_cameras_api.py` | 40 条（39 + 1 条抓帧超时） |
+
+### 13.2 实现偏差
+
+| 规格 | 实际做法 | 原因 |
+|---|---|---|
+| `device_id = "camera:<id>"` | 改成 `camera-<id>`（短横线） | `validate_device_id` 只允许 `[A-Za-z0-9_-]`，冒号会被拒 |
+| 抓帧超时靠 OpenCV 的 open/read 超时属性 | 抓帧放线程池，`future.result(timeout=...)` 硬切 | 实测 `CAP_PROP_OPEN_TIMEOUT_MSEC` 在 FFMPEG 后端不生效，连不通的地址能挂 30 秒以上，会把后台循环和请求一起拖住 |
+| `test` 返回 200 + 结果对象 | 保持 | 与「测试连接不算业务失败」一致；真正的失败仍走 `snapshot` 的 502 |
+| 规格写 6 个接口 | 保持 6 个 | 无变动 |
+| 只给 `has_secret`，不返回密文 | 保持，且 `config` 里连 RTSP 账号也只回 `rtsp://u:***@host/path` | 防日志与截图泄露 |
+
+### 13.3 验收对照
+
+| 验收项 | 结果 |
+|---|---|
+| 未配置 `SECRET_KEY` 时保存密码被拒 | ✅ 400，文案「服务器还没配置密钥，暂时不能保存摄像头密码」 |
+| 配置里不出现密码、响应里不出现密文 | ✅ 单测 + 集成测试均断言 |
+| `test` 不落库 | ✅ 只更新状态与失败计数 |
+| `snapshot` 走同一条流水线 | ✅ 202 + `images` 多一行，`device_id=camera-<id>` |
+| 连续失败到阈值建 1 条 `camera_offline` | ✅ 第 3 次建，第 4 次不重复 |
+| 关闭 `SHEDGUARD_CAMERA_ENABLED` 不启动循环 | ✅ `app.state.camera_task` 不存在 |
+| 抓帧整体有硬超时 | ✅ 15 秒返回 `unreachable`，单元测试用 0.05 秒切断验证 |
+| 质量门 | ✅ 520 测试 / 0 失败；覆盖率 93.14%；`ruff check .` 与 `mypy src tests`（138 文件）全绿 |
+
+### 13.4 冒烟结果（本地 8004，RTSP 指向不可达地址）
+
+- `POST /api/v1/cameras` → 201，`config` 只剩 `{"url": "rtsp://10.255.255.1:554/stream1"}`，`has_secret=true`，`status=never_tested`。
+- `POST /cameras/{id}/test` → 200，`{"ok": false, "kind": "unreachable", "detail": "连摄像头超时了，检查地址、电源和网络", "took_ms": 15012}`。
+- `POST /cameras/{id}/snapshot` → 502 `CAMERA_UNAVAILABLE`，与 test 同一句人话。
+- `GET /api/v1/cameras` → `status=unreachable`，`consecutive_failures=2`（test + snapshot 两次失败）。
+
+### 13.5 还没验证的
+
+- **没有任何真实摄像头**参与过：RTSP 用的是不可达地址（验证的是失败路径），萤石云的接口路径按公开文档写、账号未开通。
+- 萤石开放平台的应用审核（企业资质）尚未申请。
+- 抓帧在真实局域网下的耗时、夜间画面、玻璃反光下的成片质量都未观察。
