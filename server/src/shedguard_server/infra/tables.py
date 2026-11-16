@@ -386,3 +386,37 @@ class ContributionExportRow(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - 仅调试用
         return f"ContributionExportRow(id={self.id!r}, filename={self.filename!r})"
+
+
+class CameraRow(Base):
+    """用户添加的摄像头（数据来源之一，与 ESP32 设备同构）。
+
+    `config_json` 只存非敏感配置；密码/密钥一律在 `secret_enc` 里加密。
+    """
+
+    __tablename__ = "cameras"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
+    pet_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("pets.id"), nullable=True, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    config_json: Mapped[str] = mapped_column(Text, nullable=False)
+    secret_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_frame_at_utc: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+    updated_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - 仅调试用
+        return (
+            f"CameraRow(id={self.id!r}, provider={self.provider!r}, "
+            f"status={self.status!r}, enabled={self.enabled!r})"
+        )

@@ -26,7 +26,8 @@
 - P17（设备健康兜底）：设备静默与连续未检出提醒——已完成。
 - P22–P24（工程加固）：鲁棒性标定、照片保留策略、请求限流（后两者默认关闭）——已完成。
 - P25（萌照）：每日自动近景选片与成品图——已完成。
-- P29（数据贡献）：自愿分享、自动上传到私有收件箱、撤回与打包——已完成。当前 52 个配置项、480 个测试、覆盖率 94.06%。
+- P29（数据贡献）：自愿分享、自动上传到私有收件箱、撤回与打包——已完成。
+- P30（摄像头接入）：RTSP/萤石云适配器、定时抓拍、失败兜底与脱敏——已完成。当前 57 个配置项、520 个测试、覆盖率 93.14%。
 
 ## 运行
 
@@ -463,6 +464,38 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 
 配置收件箱的完整步骤见 `docs/contribution-setup.md`。
 
+### 摄像头接入（P30）
+
+用户可以用家里已有的摄像头作为抓拍来源，不必买专用硬件。适配器只负责交出一张 JPEG，之后的落盘、去重、判皮判定与提醒完全复用设备上传那条链路。
+
+支持两类来源：
+
+| `provider` | 需要的配置 | 说明 |
+|---|---|---|
+| `rtsp` | `url`，可选 `user` / `credential` | 通用 RTSP/HTTP 流；服务端必须能路由到摄像头（自托管场景） |
+| `ezviz` | `device_serial`、`app_key`、`app_secret`，可选 `channel` | 萤石开放平台；接口路径按公开文档实现，账号开通后需再核一次 |
+
+接口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/v1/cameras` | 注册摄像头，`201` |
+| `GET` | `/api/v1/cameras` | 列表，**配置已脱敏**，只给 `has_secret` |
+| `PATCH` | `/api/v1/cameras/{id}` | 改名、换宠物、启停、改配置 |
+| `DELETE` | `/api/v1/cameras/{id}` | 删除，`204` |
+| `POST` | `/api/v1/cameras/{id}/test` | 试连一次，**不落库**，永远 `200` + `{ok, kind, detail, took_ms}` |
+| `POST` | `/api/v1/cameras/{id}/snapshot` | 抓一张入库并走完整流水线，`202`；取不到画面返回 `502 CAMERA_UNAVAILABLE` |
+
+要点：
+
+- 抓到的帧以 `device_id = camera-<camera_id>` 写入 `images`，与 ESP32 上传同构（`validate_device_id` 只允许 `[A-Za-z0-9_-]`，所以用短横线而不是冒号）；
+- 密码等敏感字段用 Fernet 加密存 `cameras.secret_enc`；**没配 `SHEDGUARD_SECRET_KEY` 时拒绝保存密码**（返回 `400`），不会退化成明文；
+- 响应里的 `config` 会脱敏（RTSP 地址变成 `rtsp://u:***@host/path`），日志与截图都不该出现明文；
+- 连续失败达到 `SHEDGUARD_CAMERA_MAX_FAILURES` 时建一条 `camera_offline` 提醒（同一设备同一天同类只建一条）；
+- 抓帧有硬超时：OpenCV 的 open/read 超时属性在 FFMPEG 后端不生效，所以抓帧放线程池、用 `future.result(timeout=...)` 切断（实测 15 秒返回 `unreachable`，不会把后台循环拖死）。
+
+**已知限制**：萤石开放平台需要企业资质与应用审核；托管部署下服务端路由不到用户家里的摄像头；真实画面分布（广角、夜视、玻璃反光）未经训练集覆盖。
+
 ### App 接口错误码补充
 
 | 码 | 状态 | 触发场景 |
@@ -483,6 +516,7 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `STORAGE_UNAVAILABLE` | 503 | 数据目录、数据库或模型文件不可用 |
 | `MODEL_UNAVAILABLE` | 503 | 状态分类模型未配置或加载失败 |
 | `UNAUTHORIZED` | 401 | 缺少、格式错误或无效的访问令牌 / 设备令牌 |
+| `CAMERA_UNAVAILABLE` | 502 | 摄像头暂时取不到画面：网络不通或设备正在重启 |
 | `RATE_LIMITED` | 429 | 超过 `SHEDGUARD_RATE_LIMIT_PER_MINUTE` 配置的请求速率 |
 | `INTERNAL_ERROR` | 500 | 未预期异常 |
 
@@ -563,6 +597,11 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_CONTRIBUTION_UPLOAD_TOKEN` | 空 | 只对该仓库有写权限的 token（密钥） |
 | `SHEDGUARD_CONTRIBUTION_UPLOAD_MINUTES` | `30` | 上传循环间隔（分钟，1–1440） |
 | `SHEDGUARD_CONTRIBUTION_UPLOAD_BATCH` | `20` | 单批提交文件数（1–200） |
+| `SHEDGUARD_CAMERA_ENABLED` | `true` | 是否启用摄像头定时抓拍循环 |
+| `SHEDGUARD_CAMERA_POLL_MINUTES` | `30` | 抓拍间隔（分钟，1–1440） |
+| `SHEDGUARD_CAMERA_TIMEOUT_SECONDS` | `15.0` | 单次抓帧超时（秒，≤120） |
+| `SHEDGUARD_CAMERA_MAX_FAILURES` | `3` | 连续失败多少次后建离线提醒（1–20） |
+| `SHEDGUARD_SECRET_KEY` | 空 | 摄像头密码的 Fernet 密钥；空值 = 拒绝保存密码 |
 | `SHEDGUARD_LOG_LEVEL` | `INFO` | DEBUG / INFO / WARNING / ERROR / CRITICAL |
 | `SHEDGUARD_LOG_FORMAT` | `json` | `json` 或 `console` |
 

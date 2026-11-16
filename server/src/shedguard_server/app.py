@@ -20,6 +20,7 @@ from shedguard_server.api.ratelimit import EXEMPT_PATHS, TokenBucketLimiter, cli
 from shedguard_server.api.routes import (
     alerts,
     analysis,
+    cameras,
     contributions,
     devices,
     events,
@@ -57,6 +58,7 @@ from shedguard_server.infra.migrate import run_migrations
 from shedguard_server.infra.push import ExpoPushGateway, SkippedPushGateway
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.logging_setup import configure_logging, request_id_var
+from shedguard_server.services import cameras as cameras_service
 from shedguard_server.services import portraits as portrait_service
 from shedguard_server.services.contributions import upload_once
 from shedguard_server.services.health import scan_once
@@ -179,6 +181,28 @@ async def _portrait_loop(
         await asyncio.sleep(interval)
 
 
+async def _camera_loop(
+    session_factory: sessionmaker[Session],
+    settings: Settings,
+    storage: LocalStorage,
+    gateway: PushGateway,
+) -> None:
+    """周期从各摄像头取一帧走流水线；异常只记日志，不让后台任务退出。"""
+    interval = settings.camera_poll_minutes * 60
+    while True:
+        try:
+            await asyncio.to_thread(
+                cameras_service.poll_once,
+                session_factory=session_factory,
+                settings=settings,
+                storage=storage,
+                gateway=gateway,
+            )
+        except Exception:  # 后台任务必须自愈
+            logger.exception("摄像头抓拍失败")
+        await asyncio.sleep(interval)
+
+
 async def _contribution_loop(
     session_factory: sessionmaker[Session],
     settings: Settings,
@@ -254,6 +278,17 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 )
             )
         instance.state.contribution_task = contribution_task
+        camera_task: asyncio.Task[None] | None = None
+        if settings.camera_enabled:
+            camera_task = asyncio.create_task(
+                _camera_loop(
+                    instance.state.session_factory,
+                    settings,
+                    LocalStorage(settings.data_dir),
+                    instance.state.push_gateway,
+                )
+            )
+        instance.state.camera_task = camera_task
         try:
             yield
         finally:
@@ -273,6 +308,10 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 contribution_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await contribution_task
+            if camera_task is not None:
+                camera_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await camera_task
             logger.info("服务停止")
 
     app = FastAPI(title="shedguard-server", version=__version__, lifespan=lifespan)
@@ -371,4 +410,5 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(users.router)
     app.include_router(portraits.router)
     app.include_router(contributions.router)
+    app.include_router(cameras.router)
     return app

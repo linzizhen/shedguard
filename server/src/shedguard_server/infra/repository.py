@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from shedguard_server.domain.alerts import Alert, PushDevice
+from shedguard_server.domain.camera import Camera
 from shedguard_server.domain.contribution import (
     MAX_UPLOAD_ATTEMPTS,
     RETRYABLE_STATUSES,
@@ -32,6 +33,7 @@ from shedguard_server.domain.portrait import (
 from shedguard_server.domain.user import User
 from shedguard_server.infra.tables import (
     AlertRow,
+    CameraRow,
     ContributionExportRow,
     ContributionSampleRow,
     ContributionSettingRow,
@@ -1363,3 +1365,88 @@ class ContributionExportRepository:
             .limit(limit)
         ).all()
         return [_to_contribution_export(row) for row in rows]
+
+
+def _to_camera(row: CameraRow) -> Camera:
+    return Camera(
+        id=row.id,
+        owner_id=row.owner_id,
+        pet_id=row.pet_id,
+        provider=row.provider,
+        label=row.label,
+        config=json.loads(row.config_json) if row.config_json else {},
+        secret_enc=row.secret_enc,
+        enabled=row.enabled,
+        status=row.status,
+        last_error=row.last_error,
+        last_frame_at_utc=row.last_frame_at_utc,
+        consecutive_failures=row.consecutive_failures,
+        created_at_utc=row.created_at_utc,
+        updated_at_utc=row.updated_at_utc,
+    )
+
+
+def _to_camera_row(camera: Camera) -> CameraRow:
+    return CameraRow(
+        id=camera.id,
+        owner_id=camera.owner_id,
+        pet_id=camera.pet_id,
+        provider=camera.provider,
+        label=camera.label,
+        config_json=json.dumps(camera.config, ensure_ascii=False),
+        secret_enc=camera.secret_enc,
+        enabled=camera.enabled,
+        status=camera.status,
+        last_error=camera.last_error,
+        last_frame_at_utc=camera.last_frame_at_utc,
+        consecutive_failures=camera.consecutive_failures,
+        created_at_utc=camera.created_at_utc,
+        updated_at_utc=camera.updated_at_utc,
+    )
+
+
+class CameraRepository:
+    """cameras 表的读写。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, camera_id: str, *, owner_id: str | None = None) -> Camera | None:
+        row = self._session.get(CameraRow, camera_id)
+        if row is None:
+            return None
+        if owner_id is not None and row.owner_id != owner_id:
+            return None
+        return _to_camera(row)
+
+    def list_for_owner(self, owner_id: str) -> list[Camera]:
+        rows = self._session.scalars(
+            select(CameraRow)
+            .where(CameraRow.owner_id == owner_id)
+            .order_by(CameraRow.created_at_utc)
+        ).all()
+        return [_to_camera(row) for row in rows]
+
+    def list_enabled(self) -> list[Camera]:
+        rows = self._session.scalars(
+            select(CameraRow).where(CameraRow.enabled.is_(True)).order_by(CameraRow.created_at_utc)
+        ).all()
+        return [_to_camera(row) for row in rows]
+
+    def add(self, camera: Camera) -> Camera:
+        self._session.add(_to_camera_row(camera))
+        self._session.commit()
+        return camera
+
+    def save(self, camera: Camera) -> Camera:
+        self._session.merge(_to_camera_row(camera))
+        self._session.commit()
+        return camera
+
+    def delete(self, camera_id: str) -> bool:
+        row = self._session.get(CameraRow, camera_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.commit()
+        return True

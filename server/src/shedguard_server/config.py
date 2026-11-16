@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     contribution_max_pending: int = Field(default=200, ge=10, le=5000)
     contribution_crop_padding: float = Field(default=0.08, ge=0.0, le=0.3)
     contribution_upload_batch: int = Field(default=20, ge=1, le=200)
+    # 摄像头接入：定时从 RTSP / 厂商云取一帧，走与设备上传相同的流水线。
+    camera_enabled: bool = True
+    camera_poll_minutes: int = Field(default=30, ge=1, le=1440)
+    camera_timeout_seconds: float = Field(default=15.0, gt=0.0, le=120.0)
+    camera_max_failures: int = Field(default=3, ge=1, le=20)
+    secret_key: str = ""
 
     @field_validator("timezone")
     @classmethod

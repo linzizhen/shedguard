@@ -18,6 +18,7 @@ from shedguard_server.infra.auth import hash_token
 from shedguard_server.infra.contribution_upload import ContributionUploader
 from shedguard_server.infra.repository import (
     AlertRepository,
+    CameraRepository,
     ContributionExportRepository,
     ContributionSampleRepository,
     ContributionSettingRepository,
@@ -116,6 +117,12 @@ def get_portrait_setting_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> PortraitSettingRepository:
     return PortraitSettingRepository(session)
+
+
+def get_camera_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> CameraRepository:
+    return CameraRepository(session)
 
 
 def get_contribution_setting_repository(
