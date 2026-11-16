@@ -78,3 +78,13 @@ export function portraitUrl(shotId: string): string {
   const token = cached ? `?token=${encodeURIComponent(cached)}` : '';
   return `${base}/api/v1/portraits/${shotId}/image${token}`;
 }
+
+/** 已分享照片的本地缩略图地址（用来让用户确认自己分享了什么）。 */
+export function contributionUrl(sampleId: string, full = false): string {
+  const base = getServerUrl().replace(/\/+$/, '');
+  const params = new URLSearchParams();
+  if (full) params.set('full', 'true');
+  if (cached) params.set('token', cached);
+  const query = params.toString();
+  return `${base}/api/v1/contributions/${sampleId}/image${query ? `?${query}` : ''}`;
+}
