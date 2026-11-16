@@ -1,6 +1,6 @@
 # ShedGuard App
 
-豹纹守宫蜕皮助手：拍照查验蜕皮状态、查看设备自动推送的蜕皮提醒、记录蜕皮日志、饲养知识库、卡皮风险评估。
+豹纹守宫蜕皮助手：拍照查验蜕皮状态、查看设备自动推送的蜕皮提醒、每天收到一张近景萌照、记录蜕皮日志、饲养知识库、卡皮风险评估。
 
 技术栈：Expo SDK 58 + React Native 0.88 + TypeScript + Expo Router + React Query。
 
@@ -70,10 +70,13 @@ app/
 │   │   │   ├── new.tsx         # 添加宠物
 │   │   │   └── [id].tsx        # 编辑/删除宠物
 │   │   ├── alert/[id].tsx      # 蜕皮提醒详情（抓拍原图 + 标记已读）
+│   │   ├── portrait/[id].tsx   # 萌照详情（成品图 + 这张好看 / 不太满意）
+│   │   ├── portraits.tsx       # 萌照相册（按日期三列网格）
+│   │   ├── portrait-settings.tsx # 萌照设置（开关、每天张数、起止时间）
 │   │   ├── topic/[slug].tsx    # 知识详情
 │   │   └── risk.tsx            # 卡皮风险评估问卷
 │   ├── components/             # ui.tsx 黏土风基础件、PetForm、PetPicker
-│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts）
+│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts / usePortraits）
 │   └── lib/                    # theme / api / auth / serverUrl / deviceId / onboarding / resultCopy / types / dates
 ├── app.json                    # Expo 配置（CNG，勿手建 ios/android）
 └── tsconfig.json               # strict + @/* 路径别名
@@ -101,6 +104,10 @@ npx eslint .       # 代码检查
 | `GET /api/v1/alerts`、`PATCH /api/v1/alerts/{id}` | 蜕皮提醒列表与已读 | 已接 |
 | `POST /api/v1/devices`、`DELETE /api/v1/devices/{id}` | 推送设备注册与解绑 | 已接 |
 | `GET /api/v1/knowledge/topics`、`/topics/{slug}` | 知识库 | 已接 |
+| `GET /api/v1/pets/{id}/portraits`、`/portraits/today` | 萌照相册与今日萌照 | 已接 |
+| `GET/PUT /api/v1/pets/{id}/portrait-settings` | 萌照开关、每天张数与时间窗 | 已接 |
+| `POST /api/v1/portraits/{id}/feedback` | 萌照反馈（`like` / `skip` / `crop_head`） | 已接 |
+| `GET /api/v1/portraits/{id}/image` | 萌照成品图（`?token=` 传令牌，`<Image>` 不能带头） | 已接 |
 | `POST /api/v1/risk-assessment` | 卡皮风险评估 | 已接 |
 
 ## 调试与预览
@@ -117,3 +124,5 @@ npx eslint .       # 代码检查
 - 蜕皮状态分类器目前只有「正常 / 蜕皮中」两类，蒙白（opaque）暂无训练样本，会出现但概率低；分类准确性受网图训练数据限制
 - 推送依赖 Expo Push 服务与外网；Web 浏览器不支持推送，仅原生 App 可用
 - 周期预测已下线（`shed-prediction` 接口保留但 App 不再使用）
+- 萌照：V1 只保证「近景优先」，不保证是头部特写（头部检测器还没训）；「不太满意」只记反馈、不会立刻换一张（同一天同一槽位只有一张）；界面还没有手动框选头部的入口（接口已支持 `crop_head`）
+- 萌照默认开启、每天 1 张；一天多张时只有第一张会推系统通知，其余只在列表里可见
