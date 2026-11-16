@@ -239,3 +239,50 @@ export interface ContributionUploadSummary {
   failed: number;
   skipped: number;
 }
+
+// ---------- 摄像头（/api/v1/cameras） ----------
+
+export type CameraProvider = 'rtsp' | 'ezviz';
+
+export type CameraStatus = 'never_tested' | 'ok' | 'auth_failed' | 'unreachable';
+
+export interface CameraItem {
+  id: string;
+  provider: CameraProvider;
+  label: string;
+  pet_id: string | null;
+  enabled: boolean;
+  status: CameraStatus;
+  last_error: string;
+  last_frame_at_utc: string | null;
+  consecutive_failures: number;
+  config: Record<string, string>;
+  has_secret: boolean;
+  created_at_utc: string;
+  updated_at_utc: string;
+}
+
+export interface CameraListResponse {
+  items: CameraItem[];
+}
+
+export interface CameraCreateInput {
+  provider: CameraProvider;
+  label: string;
+  pet_id?: string | null;
+  config: Record<string, string>;
+}
+
+export interface CameraUpdateInput {
+  label?: string;
+  pet_id?: string | null;
+  enabled?: boolean;
+  config?: Record<string, string>;
+}
+
+export interface CameraTestResult {
+  ok: boolean;
+  kind: string;
+  detail: string;
+  took_ms: number;
+}

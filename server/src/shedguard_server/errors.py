@@ -17,6 +17,7 @@ class ErrorCode(StrEnum):
     CONFLICT = "CONFLICT"
     STORAGE_UNAVAILABLE = "STORAGE_UNAVAILABLE"
     MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+    CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE"
     UNAUTHORIZED = "UNAUTHORIZED"
     RATE_LIMITED = "RATE_LIMITED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
@@ -82,6 +83,13 @@ class UnauthorizedError(ApiError):
 
     code = ErrorCode.UNAUTHORIZED
     status_code = 401
+
+
+class CameraUnavailableError(ApiError):
+    """摄像头暂时取不到画面：网络不通或设备正在重启，可稍后重试。"""
+
+    code = ErrorCode.CAMERA_UNAVAILABLE
+    status_code = 502
 
 
 class RateLimitedError(ApiError):

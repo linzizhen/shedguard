@@ -120,11 +120,11 @@ export default function ProfileScreen() {
       <Card style={{ gap: 12 }}>
         <SectionTitle>蜕皮提醒</SectionTitle>
         <Text style={styles.body}>
-          接上摄像头之后，它每 30 分钟拍一张。发现守宫身上有蜕皮的白皮，就会提醒你。
+          接上摄像头之后，它白天每隔一段时间拍一张。发现守宫身上有蜕皮的白皮，就会提醒你。
         </Text>
         <Field
-          label="摄像头编号"
-          placeholder="gecko-eye-01"
+          label="采集器编号（只有用 ESP32 采集器时才需要）"
+          placeholder="留空就行"
           autoCapitalize="none"
           autoCorrect={false}
           value={deviceValue}
@@ -137,6 +137,18 @@ export default function ProfileScreen() {
         />
         {pushStatusText() !== '' ? <Text style={styles.hint}>{pushStatusText()}</Text> : null}
       </Card>
+
+      <SectionTitle>摄像头</SectionTitle>
+      <Pressable
+        onPress={() => router.push('/cameras')}
+        accessibilityRole="button"
+        accessibilityLabel="打开摄像头列表"
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Ionicons name="videocam-outline" size={20} color={colors.primaryDark} />
+        <Text style={styles.linkText}>接上家里的摄像头</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </Pressable>
 
       <SectionTitle>萌照</SectionTitle>
       <Pressable
