@@ -99,6 +99,16 @@ class Settings(BaseSettings):
     portrait_min_detector_confidence: float = Field(default=0.45, ge=0.0, le=1.0)
     portrait_max_output_px: int = Field(default=640, ge=128, le=2048)
     portrait_jpeg_quality: int = Field(default=88, ge=40, le=100)
+    # 数据贡献：默认关闭上传；开关打开后把用户勾选的照片自动写进收件箱仓库。
+    contribution_enabled: bool = True
+    contribution_upload_enabled: bool = False
+    contribution_upload_repo: str = ""
+    contribution_upload_token: str = ""
+    contribution_upload_minutes: int = Field(default=30, ge=1, le=1440)
+    contribution_per_event_limit: int = Field(default=3, ge=1, le=10)
+    contribution_max_pending: int = Field(default=200, ge=10, le=5000)
+    contribution_crop_padding: float = Field(default=0.08, ge=0.0, le=0.3)
+    contribution_upload_batch: int = Field(default=20, ge=1, le=200)
 
     @field_validator("timezone")
     @classmethod

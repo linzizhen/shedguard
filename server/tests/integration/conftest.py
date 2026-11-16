@@ -26,6 +26,7 @@ def settings(workdir: Path) -> Settings:
         auth_enabled=False,
         health_monitor_enabled=False,
         portrait_enabled=False,
+        contribution_enabled=False,
     )
 
 

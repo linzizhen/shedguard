@@ -16,16 +16,22 @@ from shedguard_server.domain.alerts import SHEDDING_STATE
 from shedguard_server.domain.detection import Detector
 from shedguard_server.domain.push import PushGateway
 from shedguard_server.domain.shedding import ShedState, StateClassifier, aggregate
+from shedguard_server.infra.contribution_upload import ContributionUploader
 from shedguard_server.infra.repository import (
     AlertRepository,
+    ContributionExportRepository,
+    ContributionSampleRepository,
+    ContributionSettingRepository,
     FrameMetricRepository,
     ImageRepository,
+    PetRepository,
     PushDeviceRepository,
     SheddingStateRepository,
 )
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.services.alerts import AlertService
 from shedguard_server.services.analysis import AnalysisService
+from shedguard_server.services.contributions import ContributionService
 from shedguard_server.services.shedding import SheddingService
 
 logger = logging.getLogger("shedguard.pipeline")
@@ -42,6 +48,7 @@ def process_image(
     classifier: StateClassifier | None,
     storage: LocalStorage,
     gateway: PushGateway,
+    contribution_uploader: ContributionUploader,
     image_id: str,
 ) -> None:
     """上传后的后台处理入口；永不抛异常。"""
@@ -54,6 +61,7 @@ def process_image(
                 classifier=classifier,
                 storage=storage,
                 gateway=gateway,
+                contribution_uploader=contribution_uploader,
                 image_id=image_id,
             )
     except Exception:  # 后台任务不能把异常抛回请求
@@ -68,6 +76,7 @@ def _run(
     classifier: StateClassifier | None,
     storage: LocalStorage,
     gateway: PushGateway,
+    contribution_uploader: ContributionUploader,
     image_id: str,
 ) -> None:
     images = ImageRepository(session)
@@ -103,12 +112,24 @@ def _run(
         logger.info("状态非蜕皮中 image_id=%s state=%s", image_id, state.state)
         return
 
+    devices = PushDeviceRepository(session)
+    _enqueue_contribution(
+        session,
+        settings=settings,
+        storage=storage,
+        uploader=contribution_uploader,
+        device_id=state.device_id,
+        source_image_id=state.image_id,
+        state=state.state,
+        confidence=state.confidence,
+        local_date=state.local_date,
+    )
+
     previous = _previous_state(states, record.device_id, state.local_date)
     if previous is ShedState.SHEDDING:
         logger.info("上一有状态日已是蜕皮中，不重复提醒 device=%s", record.device_id)
         return
 
-    devices = PushDeviceRepository(session)
     alert_service = AlertService(
         AlertRepository(session),
         devices,
@@ -128,6 +149,55 @@ def _run(
         logger.info(
             "已创建蜕皮提醒 alert_id=%s push_status=%s", delivered.id, delivered.push_status
         )
+
+
+def _enqueue_contribution(
+    session: Session,
+    *,
+    settings: Settings,
+    storage: LocalStorage,
+    uploader: ContributionUploader,
+    device_id: str,
+    source_image_id: str,
+    state: str,
+    confidence: float | None,
+    local_date: date,
+) -> None:
+    """把这张图排进「用户自愿分享」队列；失败只记日志，绝不影响提醒。"""
+    devices = PushDeviceRepository(session)
+    owner_id = devices.owner_for_device(device_id)
+    if owner_id is None:
+        return
+    try:
+        service = ContributionService(
+            settings=ContributionSettingRepository(session),
+            samples=ContributionSampleRepository(session),
+            exports=ContributionExportRepository(session),
+            pets=PetRepository(session),
+            devices=devices,
+            images=ImageRepository(session),
+            metrics=FrameMetricRepository(session),
+            storage=storage,
+            uploader=uploader,
+            per_event_limit=settings.contribution_per_event_limit,
+            max_pending=settings.contribution_max_pending,
+            crop_padding=settings.contribution_crop_padding,
+            upload_batch_size=settings.contribution_upload_batch,
+        )
+        sample = service.enqueue_for_event(
+            device_id=device_id,
+            owner_id=owner_id,
+            pet_id=devices.pet_for_device(device_id),
+            source_image_id=source_image_id,
+            state=state,
+            confidence=confidence,
+            local_date=local_date,
+        )
+    except Exception:  # 分享出问题不能拖垮蜕皮提醒
+        logger.exception("入队数据贡献失败 image_id=%s", source_image_id)
+        return
+    if sample is not None:
+        logger.info("已入队数据贡献 sample_id=%s", sample.id)
 
 
 def _previous_state(

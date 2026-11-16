@@ -20,6 +20,7 @@ dependencies = [
     "pillow>=11",
     "opencv-python-headless>=4.10",
     "onnxruntime>=1.20",
+    "huggingface-hub>=0.24",
 ]
 
 [project.optional-dependencies]

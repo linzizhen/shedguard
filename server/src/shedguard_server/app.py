@@ -20,6 +20,7 @@ from shedguard_server.api.ratelimit import EXEMPT_PATHS, TokenBucketLimiter, cli
 from shedguard_server.api.routes import (
     alerts,
     analysis,
+    contributions,
     devices,
     events,
     health,
@@ -46,6 +47,10 @@ from shedguard_server.errors import (
 )
 from shedguard_server.ids import new_request_id
 from shedguard_server.infra.classifier import OnnxStateClassifier
+from shedguard_server.infra.contribution_upload import (
+    ContributionUploader,
+    build_contribution_uploader,
+)
 from shedguard_server.infra.db import create_db_engine, create_session_factory
 from shedguard_server.infra.detector import OnnxDetector
 from shedguard_server.infra.migrate import run_migrations
@@ -53,6 +58,7 @@ from shedguard_server.infra.push import ExpoPushGateway, SkippedPushGateway
 from shedguard_server.infra.storage import LocalStorage
 from shedguard_server.logging_setup import configure_logging, request_id_var
 from shedguard_server.services import portraits as portrait_service
+from shedguard_server.services.contributions import upload_once
 from shedguard_server.services.health import scan_once
 from shedguard_server.services.retention import purge_once
 
@@ -105,6 +111,15 @@ def _build_push_gateway(settings: Settings) -> PushGateway:
     if not settings.push_enabled:
         return SkippedPushGateway()
     return ExpoPushGateway(settings.expo_push_url, timeout=settings.push_timeout_seconds)
+
+
+def _build_contribution_uploader(settings: Settings) -> ContributionUploader:
+    """上传关闭或没配仓库时用占位实现，绝不在这种情况下发网络请求。"""
+    return build_contribution_uploader(
+        enabled=settings.contribution_upload_enabled,
+        repo_id=settings.contribution_upload_repo,
+        token=settings.contribution_upload_token,
+    )
 
 
 async def _health_loop(
@@ -164,6 +179,28 @@ async def _portrait_loop(
         await asyncio.sleep(interval)
 
 
+async def _contribution_loop(
+    session_factory: sessionmaker[Session],
+    settings: Settings,
+    storage: LocalStorage,
+    uploader: ContributionUploader,
+) -> None:
+    """周期把待上传的样本推给收件箱；异常只记日志，不让后台任务退出。"""
+    interval = settings.contribution_upload_minutes * 60
+    while True:
+        try:
+            await asyncio.to_thread(
+                upload_once,
+                session_factory=session_factory,
+                config=settings,
+                storage=storage,
+                uploader=uploader,
+            )
+        except Exception:  # 后台任务必须自愈
+            logger.exception("数据贡献上传失败")
+        await asyncio.sleep(interval)
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -206,6 +243,17 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 )
             )
         instance.state.portrait_task = portrait_task
+        contribution_task: asyncio.Task[None] | None = None
+        if settings.contribution_enabled:
+            contribution_task = asyncio.create_task(
+                _contribution_loop(
+                    instance.state.session_factory,
+                    settings,
+                    LocalStorage(settings.data_dir),
+                    instance.state.contribution_uploader,
+                )
+            )
+        instance.state.contribution_task = contribution_task
         try:
             yield
         finally:
@@ -221,6 +269,10 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
                 portrait_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await portrait_task
+            if contribution_task is not None:
+                contribution_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await contribution_task
             logger.info("服务停止")
 
     app = FastAPI(title="shedguard-server", version=__version__, lifespan=lifespan)
@@ -230,6 +282,7 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.state.detector, app.state.detector_error = _build_detector(settings)
     app.state.state_classifier, app.state.classifier_error = _build_classifier(settings)
     app.state.push_gateway = _build_push_gateway(settings)
+    app.state.contribution_uploader = _build_contribution_uploader(settings)
     rate_limiter = (
         TokenBucketLimiter(
             per_minute=settings.rate_limit_per_minute,
@@ -317,4 +370,5 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(alerts.router)
     app.include_router(users.router)
     app.include_router(portraits.router)
+    app.include_router(contributions.router)
     return app
