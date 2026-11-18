@@ -1,6 +1,6 @@
 /**
- * 「我的」：守宫档案、提醒绑定、知识入口、以及折叠起来的高级设置。
- * 高级设置里才有服务器地址——普通用户不需要看。
+ * 「我的」：守宫档案、提醒绑定、功能入口、以及折叠起来的高级设置。
+ * 入口统一放在一张卡片里用行分割，避免六个独立卡片把页面切碎。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import {
   Card,
   EmptyState,
   Field,
+  ListRow,
   PageHeader,
   PrimaryButton,
   Screen,
@@ -23,7 +24,7 @@ import { usePets } from '@/hooks/usePets';
 import { ensureToken, resetToken } from '@/lib/auth';
 import { saveDeviceId, useDeviceId } from '@/lib/deviceId';
 import { saveServerUrl, useServerUrl } from '@/lib/serverUrl';
-import { colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
 import type { Pet } from '@/lib/types';
 
 export default function ProfileScreen() {
@@ -82,10 +83,15 @@ export default function ProfileScreen() {
     <Screen>
       <PageHeader title="我的" subtitle="你的守宫、提醒和设置" />
 
-      <Card style={{ gap: 14 }}>
+      <Card style={{ gap: space.md }}>
         <View style={styles.rowBetween}>
           <SectionTitle>我的守宫</SectionTitle>
-          <Pressable onPress={() => router.push('/pet/new')} accessibilityRole="button" style={styles.addChip}>
+          <Pressable
+            onPress={() => router.push('/pet/new')}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.addChip, pressed && clayPress]}
+          >
+            <Ionicons name="add" size={15} color={colors.primaryDark} />
             <Text style={styles.addChipText}>添加</Text>
           </Pressable>
         </View>
@@ -93,31 +99,38 @@ export default function ProfileScreen() {
         {petsQuery.isLoading ? (
           <Text style={styles.muted}>加载中…</Text>
         ) : pets.length === 0 ? (
-          <EmptyState icon="paw" title="还没有档案" subtitle="点右上角「添加」给守宫建个档案" />
+          <EmptyState icon="paw-outline" title="还没有档案" subtitle="点右上角「添加」给守宫建个档案" />
         ) : (
-          <View style={{ gap: 10 }}>
-            {pets.map((pet) => (
-              <Pressable
+          <View>
+            {pets.map((pet, index) => (
+              <View
                 key={pet.id}
-                onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.petRow, pressed && styles.pressed]}
+                style={[styles.petRow, index < pets.length - 1 && styles.petRowDivider]}
               >
-                <View style={styles.petIcon}>
-                  <Ionicons name="paw" size={18} color={colors.primaryDark} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.petName}>{pet.name}</Text>
-                  <Text style={styles.petMeta}>{pet.species ?? '豹纹守宫'}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-              </Pressable>
+                <Pressable
+                  onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.petTap, pressed && clayPress]}
+                >
+                  <View style={styles.petIcon}>
+                    <Ionicons name="paw" size={17} color={colors.primaryDark} />
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={styles.petName}>{pet.name}</Text>
+                    <Text style={styles.petMeta}>
+                      {pet.species ?? '豹纹守宫'}
+                      {pet.morph ? ` · ${pet.morph}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={17} color={colors.faintForeground} />
+                </Pressable>
+              </View>
             ))}
           </View>
         )}
       </Card>
 
-      <Card style={{ gap: 12 }}>
+      <Card style={{ gap: space.md }}>
         <SectionTitle>蜕皮提醒</SectionTitle>
         <Text style={styles.body}>
           接上摄像头之后，它白天每隔一段时间拍一张。发现守宫身上有蜕皮的白皮，就会提醒你。
@@ -138,68 +151,46 @@ export default function ProfileScreen() {
         {pushStatusText() !== '' ? <Text style={styles.hint}>{pushStatusText()}</Text> : null}
       </Card>
 
-      <SectionTitle>摄像头</SectionTitle>
-      <Pressable
-        onPress={() => router.push('/cameras')}
-        accessibilityRole="button"
-        accessibilityLabel="打开摄像头列表"
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Ionicons name="videocam-outline" size={20} color={colors.primaryDark} />
-        <Text style={styles.linkText}>接上家里的摄像头</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
-
-      <SectionTitle>萌照</SectionTitle>
-      <Pressable
-        onPress={() => router.push('/portraits')}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Ionicons name="images-outline" size={20} color={colors.primaryDark} />
-        <Text style={styles.linkText}>萌照相册</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
-
-      <Pressable
-        onPress={() => router.push('/portrait-settings')}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Ionicons name="camera-outline" size={20} color={colors.primaryDark} />
-        <Text style={styles.linkText}>萌照设置</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
-
-      <Pressable
-        onPress={() => router.push('/contribution')}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Ionicons name="heart-outline" size={20} color={colors.primaryDark} />
-        <Text style={styles.linkText}>分享照片，帮到别的守宫</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
-
-      <Pressable
-        onPress={() => router.push('/knowledge')}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Ionicons name="book-outline" size={20} color={colors.primaryDark} />
-        <Text style={styles.linkText}>蜕皮知识</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
-
-      <Pressable
-        onPress={() => router.push('/risk')}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-      >
-        <Ionicons name="medkit-outline" size={20} color={colors.primaryDark} />
-        <Text style={styles.linkText}>蜕皮不顺利？做个检查</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-      </Pressable>
+      <SectionTitle>功能</SectionTitle>
+      <Card style={styles.listCard}>
+        <ListRow
+          icon="videocam-outline"
+          title="接上家里的摄像头"
+          hint="接一次，之后自动拍"
+          onPress={() => router.push('/cameras')}
+        />
+        <ListRow
+          icon="images-outline"
+          title="萌照相册"
+          hint="每天挑一张它的样子"
+          onPress={() => router.push('/portraits')}
+        />
+        <ListRow
+          icon="camera-outline"
+          title="萌照设置"
+          hint="每天拍几张、什么时段拍"
+          onPress={() => router.push('/portrait-settings')}
+        />
+        <ListRow
+          icon="heart-outline"
+          title="分享照片，帮到别的守宫"
+          hint="默认关闭，随时可以停"
+          onPress={() => router.push('/contribution')}
+        />
+        <ListRow
+          icon="book-outline"
+          title="蜕皮知识"
+          hint="为什么白、要不要帮它撕"
+          onPress={() => router.push('/knowledge')}
+        />
+        <ListRow
+          icon="medkit-outline"
+          title="蜕皮不顺利？做个检查"
+          hint="六道题，看要不要找医生"
+          onPress={() => router.push('/risk')}
+          last
+        />
+      </Card>
 
       <Pressable
         onPress={() => setAdvancedOpen((v) => !v)}
@@ -209,10 +200,15 @@ export default function ProfileScreen() {
         <Text style={styles.advancedText}>
           {advancedOpen ? '收起高级设置' : '高级设置'}
         </Text>
+        <Ionicons
+          name={advancedOpen ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={colors.mutedForeground}
+        />
       </Pressable>
 
       {advancedOpen ? (
-        <Card style={{ gap: 12 }}>
+        <Card style={{ gap: space.md }}>
           <Text style={styles.hint}>
             只有自己搭服务器的人才需要改这里。地址格式像 http://192.168.1.10:8000
           </Text>
@@ -242,98 +238,84 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   addChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    minHeight: 40,
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: space.md,
+    minHeight: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
   },
   addChipText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
+    ...type.caption,
+    fontWeight: '700',
+    color: colors.primaryDark,
   },
   muted: {
-    fontSize: 14,
+    ...type.bodySm,
     color: colors.mutedForeground,
   },
   body: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.foreground,
+    ...type.bodySm,
+    color: colors.body,
   },
   petRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
     minHeight: 56,
   },
-  pressed: {
-    opacity: 0.85,
+  petRowDivider: {
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.divider,
+  },
+  petTap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.sm + 2,
   },
   petIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.card,
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   petName: {
+    ...type.heading,
     fontSize: 16,
-    fontWeight: '800',
     color: colors.foreground,
   },
   petMeta: {
-    fontSize: 13,
+    ...type.caption,
     color: colors.mutedForeground,
   },
   hint: {
-    fontSize: 13,
-    lineHeight: 19,
+    ...type.caption,
     color: colors.mutedForeground,
   },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 3,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    minHeight: 56,
-  },
-  linkText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.foreground,
+  listCard: {
+    paddingVertical: space.xs,
+    paddingHorizontal: space.lg,
+    gap: 0,
   },
   advancedToggle: {
-    paddingVertical: 12,
-    minHeight: 44,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs,
+    paddingVertical: space.md,
+    minHeight: 44,
   },
   advancedText: {
-    fontSize: 14,
-    fontWeight: '700',
+    ...type.caption,
+    fontWeight: '600',
     color: colors.mutedForeground,
-    textDecorationLine: 'underline',
   },
   about: {
+    ...type.caption,
     fontSize: 12,
-    color: colors.mutedForeground,
+    color: colors.faintForeground,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: space.sm,
   },
 });

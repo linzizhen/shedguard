@@ -11,7 +11,7 @@ import { usePets } from '@/hooks/usePets';
 import { usePortraitAlbum } from '@/hooks/usePortraits';
 import { ensureToken, portraitUrl } from '@/lib/auth';
 import { useServerUrl } from '@/lib/serverUrl';
-import { clayPress, colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
 
 export default function PortraitsScreen() {
   const serverUrl = useServerUrl();
@@ -32,7 +32,11 @@ export default function PortraitsScreen() {
     return (
       <Screen>
         <Card>
-          <EmptyState icon="cloud-offline" title="App 还没连上电脑" subtitle="先回到「我的」，填好地址。" />
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="App 还没连上电脑"
+            subtitle="先回到「我的」，填好地址。"
+          />
         </Card>
       </Screen>
     );
@@ -41,8 +45,12 @@ export default function PortraitsScreen() {
   if (pets.length === 0) {
     return (
       <Screen>
-        <Card style={{ gap: 12 }}>
-          <EmptyState icon="paw" title="还没有你的守宫" subtitle="先建个档案，设备才会开始拍" />
+        <Card style={{ gap: space.md }}>
+          <EmptyState
+            icon="paw-outline"
+            title="还没有你的守宫"
+            subtitle="先建个档案，设备才会开始拍"
+          />
           <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
         </Card>
       </Screen>
@@ -55,15 +63,12 @@ export default function PortraitsScreen() {
         <Text style={styles.subtitle}>设备每天会挑一张最好的留下来</Text>
         <Card>
           <EmptyState
-            icon="images"
+            icon="images-outline"
             title="还没有照片"
             subtitle="设备拍够几张后，这里就会出现。也可以在「萌照设置」里改成每天多拍几张。"
           />
         </Card>
-        <PrimaryButton
-          title="去改萌照设置"
-          onPress={() => router.push('/portrait-settings')}
-        />
+        <PrimaryButton title="去改萌照设置" onPress={() => router.push('/portrait-settings')} />
       </Screen>
     );
   }
@@ -75,7 +80,12 @@ export default function PortraitsScreen() {
         {shots.map((shot) => (
           <Pressable
             key={shot.id}
-            onPress={() => router.push({ pathname: '/portrait/[id]', params: { id: shot.id, local_date: shot.local_date } })}
+            onPress={() =>
+              router.push({
+                pathname: '/portrait/[id]',
+                params: { id: shot.id, local_date: shot.local_date },
+              })
+            }
             accessibilityRole="button"
             accessibilityLabel={`${shot.local_date} 的萌照`}
             style={({ pressed }) => [styles.cell, pressed && clayPress]}
@@ -104,52 +114,38 @@ export default function PortraitsScreen() {
 }
 
 const styles = StyleSheet.create({
-  subtitle: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
+  subtitle: { ...type.bodySm, color: colors.mutedForeground },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: space.sm + 2,
   },
   cell: {
     width: '31%',
-    gap: 4,
+    gap: space.xs,
   },
   image: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: radius.md,
-    borderWidth: 2,
+    borderWidth: hairline,
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  caption: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-  },
+  caption: { ...type.caption, color: colors.mutedForeground, textAlign: 'center' },
   imagePlaceholder: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: radius.md,
-    borderWidth: 2,
+    borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.muted,
   },
-  tip: {
-    paddingVertical: 12,
-  },
+  tip: { paddingVertical: space.md },
   tipRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
   },
-  tipText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 20,
-    color: colors.foreground,
-  },
+  tipText: { ...type.caption, flex: 1, color: colors.body },
 });

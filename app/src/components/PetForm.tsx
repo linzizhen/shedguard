@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Card, Field, PrimaryButton, SecondaryButton, SectionTitle } from '@/components/ui';
-import { colors } from '@/lib/theme';
+import { colors, space, type } from '@/lib/theme';
 
 /** 表单值：三个可选字段用空串表示「未填写」 */
 export type PetFormValue = {
@@ -118,14 +118,14 @@ export function PetForm({
 
 const styles = StyleSheet.create({
   gapColumn: {
-    gap: 12,
+    gap: space.md,
   },
   row: {
-    gap: 12,
+    gap: space.md,
   },
   error: {
+    ...type.caption,
     color: colors.destructive,
-    fontSize: 13,
     fontWeight: '600',
   },
 });

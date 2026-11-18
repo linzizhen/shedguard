@@ -8,14 +8,22 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PageHeader, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  PageHeader,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+} from '@/components/ui';
 import { usePets } from '@/hooks/usePets';
 import { usePortraitToday } from '@/hooks/usePortraits';
 import { checkPhoto, pickCheckPhoto, takeCheckPhoto } from '@/hooks/useShed';
 import { portraitUrl } from '@/lib/auth';
 import { resultCopy } from '@/lib/resultCopy';
 import { useServerUrl } from '@/lib/serverUrl';
-import { clayPress, clayShadow, colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, shadow, space, type } from '@/lib/theme';
 import type { CheckPhotoResult, Pet, ShedState } from '@/lib/types';
 
 /** 详情折叠区里的状态名（给好奇的人看，主流程不出现） */
@@ -26,11 +34,18 @@ const DETAIL_LABEL: Record<ShedState, string> = {
   unknown: '看不清',
 };
 
-const TONE_COLOR: Record<string, string> = {
-  shedding: colors.accent,
-  wait: colors.warning,
-  good: colors.success,
-  unclear: colors.mutedForeground,
+const TONE_BADGE: Record<string, 'accent' | 'warning' | 'success' | 'neutral'> = {
+  shedding: 'accent',
+  wait: 'warning',
+  good: 'success',
+  unclear: 'neutral',
+};
+
+const TONE_LABEL: Record<string, string> = {
+  shedding: '正在蜕皮',
+  wait: '快蜕皮了',
+  good: '状态正常',
+  unclear: '没看清',
 };
 
 export default function HomeScreen() {
@@ -84,7 +99,7 @@ export default function HomeScreen() {
         <PageHeader title="拍照" subtitle="拍一张它身上发白的地方" />
         <Card>
           <EmptyState
-            icon="cloud-offline"
+            icon="cloud-offline-outline"
             title="App 还没连上电脑"
             subtitle="在「我的 → 高级设置」里填入电脑地址，或者重新打开首次引导。"
           />
@@ -99,7 +114,7 @@ export default function HomeScreen() {
       <Screen>
         <PageHeader title="拍照" subtitle="拍一张它身上发白的地方" />
         <Card>
-          <EmptyState icon="hourglass" title="准备中…" />
+          <EmptyState icon="hourglass-outline" title="准备中…" />
         </Card>
       </Screen>
     );
@@ -109,8 +124,12 @@ export default function HomeScreen() {
     return (
       <Screen>
         <PageHeader title="拍照" subtitle="拍一张它身上发白的地方" />
-        <Card style={{ gap: 12 }}>
-          <EmptyState icon="paw" title="还没有你的守宫" subtitle="先花 10 秒建个档案，就能开始拍了" />
+        <Card style={{ gap: space.md }}>
+          <EmptyState
+            icon="paw-outline"
+            title="还没有你的守宫"
+            subtitle="先花 10 秒建个档案，就能开始拍了"
+          />
           <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
         </Card>
       </Screen>
@@ -122,7 +141,10 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <PageHeader title="拍照" subtitle={activePet ? `正在给 ${activePet.name} 看皮肤` : '拍一张它身上发白的地方'} />
+      <PageHeader
+        title="拍照"
+        subtitle={activePet ? `正在给 ${activePet.name} 看皮肤` : '拍一张它身上发白的地方'}
+      />
 
       {pets.length > 1 ? (
         <View style={styles.chips}>
@@ -158,7 +180,7 @@ export default function HomeScreen() {
               <Text style={styles.portraitTitle}>今天的萌照</Text>
               <Text style={styles.portraitHint}>点开看看，不满意可以换一张</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward" size={18} color={colors.faintForeground} />
           </Card>
         </Pressable>
       ) : null}
@@ -169,10 +191,12 @@ export default function HomeScreen() {
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="拍一张照片"
-          style={({ pressed }) => [styles.shutter, busy && styles.shutterBusy, pressed && clayPress]}
+          style={({ pressed }) => [styles.shutterRing, busy && styles.busy, pressed && clayPress]}
         >
-          <Ionicons name="camera" size={56} color="#FFFFFF" />
-          <Text style={styles.shutterText}>{busy ? '正在看…' : '拍张照'}</Text>
+          <View style={styles.shutter}>
+            <Ionicons name="camera" size={40} color="#FFFFFF" />
+            <Text style={styles.shutterText}>{busy ? '正在看…' : '拍张照'}</Text>
+          </View>
         </Pressable>
         <Text style={styles.shutterHint}>
           {busy ? '正在看照片…（大约 3 秒）' : '把手机对准它，尽量靠近、光线亮一点'}
@@ -182,16 +206,17 @@ export default function HomeScreen() {
       <SecondaryButton title="从相册选一张" onPress={() => void shoot('library')} disabled={busy} />
 
       {errorText ? (
-        <Card>
+        <Card tone="soft" style={styles.errorCard}>
+          <Ionicons name="alert-circle" size={20} color={colors.destructive} />
           <Text style={styles.errorText}>{errorText}</Text>
         </Card>
       ) : null}
 
       {lastResult && copy ? (
         <Card style={styles.resultCard}>
-          <View style={[styles.resultBadge, { backgroundColor: TONE_COLOR[copy.tone] }]}>
-            <Ionicons name={copy.emojiIcon} size={18} color="#FFFFFF" />
-            <Text style={styles.resultBadgeText}>结果</Text>
+          <View style={styles.resultTop}>
+            <Badge label={TONE_LABEL[copy.tone] ?? '结果'} tone={TONE_BADGE[copy.tone] ?? 'neutral'} />
+            <Text style={styles.resultDate}>{lastResult.state === 'unknown' ? '再看看' : '刚刚'}</Text>
           </View>
 
           <Text style={styles.headline}>{copy.headline}</Text>
@@ -208,6 +233,11 @@ export default function HomeScreen() {
             <Text style={styles.detailToggleText}>
               {showDetail ? '收起细节' : '看看更多细节'}
             </Text>
+            <Ionicons
+              name={showDetail ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={colors.mutedForeground}
+            />
           </Pressable>
 
           {showDetail ? (
@@ -227,9 +257,7 @@ export default function HomeScreen() {
                       </Text>
                     ))
                 : null}
-              <Text style={styles.detailNote}>
-                这些数字仅供了解，不影响上面那句结论。
-              </Text>
+              <Text style={styles.detailNote}>这些数字仅供了解，不影响上面那句结论。</Text>
             </View>
           ) : null}
         </Card>
@@ -242,50 +270,48 @@ const styles = StyleSheet.create({
   portraitCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 10,
+    gap: space.md,
+    padding: space.md,
   },
   portraitThumb: {
-    width: 72,
-    height: 72,
+    width: 60,
+    height: 60,
     borderRadius: radius.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.muted,
   },
   portraitText: {
     flex: 1,
-    gap: 4,
+    gap: 2,
   },
   portraitTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    ...type.heading,
     color: colors.foreground,
   },
   portraitHint: {
-    fontSize: 13,
+    ...type.caption,
     color: colors.mutedForeground,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: space.sm,
   },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 44,
+    paddingHorizontal: space.lg,
+    minHeight: 40,
     justifyContent: 'center',
-    borderRadius: radius.md,
-    borderWidth: 2,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
   chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
   },
   chipText: {
-    fontSize: 15,
-    fontWeight: '700',
+    ...type.caption,
+    fontWeight: '600',
     color: colors.mutedForeground,
   },
   chipTextActive: {
@@ -293,94 +319,102 @@ const styles = StyleSheet.create({
   },
   shutterWrap: {
     alignItems: 'center',
-    gap: 14,
-    marginTop: 8,
+    gap: space.md,
+    paddingVertical: space.lg,
   },
-  shutter: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: colors.primary,
-    borderWidth: 5,
-    borderColor: colors.primaryDark,
+  shutterRing: {
+    width: 196,
+    height: 196,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    ...clayShadow,
+    backgroundColor: colors.card,
   },
-  shutterBusy: {
-    opacity: 0.7,
+  shutter: {
+    width: 168,
+    height: 168,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.sm,
+    ...shadow.raised,
+  },
+  busy: {
+    opacity: 0.75,
   },
   shutterText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
   shutterHint: {
-    fontSize: 14,
+    ...type.caption,
     color: colors.mutedForeground,
     textAlign: 'center',
-    paddingHorizontal: 24,
-    lineHeight: 21,
+    paddingHorizontal: space.xxl,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+    backgroundColor: colors.destructiveSoft,
+    borderColor: colors.destructiveSoft,
   },
   errorText: {
-    fontSize: 15,
-    lineHeight: 22,
+    ...type.bodySm,
+    flex: 1,
     color: colors.destructive,
   },
   resultCard: {
-    gap: 12,
+    gap: space.md,
   },
-  resultBadge: {
-    alignSelf: 'flex-start',
+  resultTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    justifyContent: 'space-between',
   },
-  resultBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
+  resultDate: {
+    ...type.caption,
+    color: colors.faintForeground,
   },
   headline: {
-    fontSize: 26,
-    fontWeight: '800',
+    ...type.title,
     color: colors.foreground,
   },
   advice: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.foreground,
+    ...type.body,
+    color: colors.body,
   },
   detailToggle: {
-    paddingVertical: 10,
-    minHeight: 44,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingVertical: space.sm,
+    minHeight: 40,
   },
   detailToggleText: {
-    fontSize: 14,
+    ...type.caption,
     fontWeight: '700',
-    color: colors.primaryDark,
-    textDecorationLine: 'underline',
+    color: colors.mutedForeground,
   },
   detailBox: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.muted,
     borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 6,
+    padding: space.md,
+    gap: space.xs,
   },
   detailLine: {
-    fontSize: 14,
-    color: colors.foreground,
+    ...type.caption,
+    color: colors.body,
   },
   detailNote: {
+    ...type.caption,
     fontSize: 12,
-    color: colors.mutedForeground,
-    marginTop: 4,
+    color: colors.faintForeground,
+    marginTop: space.xs,
   },
 });

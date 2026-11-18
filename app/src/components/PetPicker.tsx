@@ -3,7 +3,7 @@
  */
 import { ScrollView, StyleSheet, Text, Pressable } from 'react-native';
 
-import { clayPress, colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
 import type { Pet } from '@/lib/types';
 
 export function PetPicker({
@@ -46,34 +46,34 @@ export function PetPicker({
 
 const styles = StyleSheet.create({
   row: {
-    gap: 8,
+    gap: space.sm,
     paddingVertical: 2,
   },
   chip: {
-    borderRadius: radius.md,
-    borderWidth: 3,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    minHeight: 40,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
   },
   chipIdle: {
     backgroundColor: colors.card,
     borderColor: colors.border,
   },
   chipTextActive: {
+    ...type.bodySm,
     color: '#FFFFFF',
-    fontSize: 14,
     fontWeight: '700',
   },
   chipTextIdle: {
-    color: colors.foreground,
-    fontSize: 14,
+    ...type.bodySm,
+    color: colors.body,
     fontWeight: '600',
   },
 });

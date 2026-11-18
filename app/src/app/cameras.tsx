@@ -1,19 +1,20 @@
 /**
  * 摄像头列表：接上家里已有的摄像头，定时抓拍交给服务端判定。
  */
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
+import { Card, EmptyState, PrimaryButton, Screen } from '@/components/ui';
 import {
   useCameraSnapshot,
   useCameras,
   useDeleteCamera,
   useTestCamera,
 } from '@/hooks/useCameras';
-import type { CameraItem, CameraStatus } from '@/lib/types';
 import { useServerUrl } from '@/lib/serverUrl';
-import { clayPress, colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
+import type { CameraItem, CameraStatus } from '@/lib/types';
 
 const STATUS_META: Record<CameraStatus, { label: string; color: string; hint: string }> = {
   never_tested: { label: '还没试过', color: colors.mutedForeground, hint: '点一下「试试连得上」' },
@@ -68,14 +69,23 @@ function CameraCard({ camera }: { camera: CameraItem }) {
   return (
     <Card style={styles.card}>
       <View style={styles.headRow}>
-        <View style={[styles.dot, { backgroundColor: meta.color }]} />
-        <Text style={styles.label}>{camera.label}</Text>
-        <Text style={[styles.status, { color: meta.color }]}>{meta.label}</Text>
+        <View style={styles.iconWrap}>
+          <Ionicons name="videocam" size={18} color={colors.primaryDark} />
+        </View>
+        <View style={styles.headText}>
+          <Text style={styles.label}>{camera.label}</Text>
+          <Text style={styles.moment}>最近一张：{formatMoment(camera.last_frame_at_utc)}</Text>
+        </View>
+        <View style={[styles.statusPill, { backgroundColor: `${meta.color}14` }]}>
+          <View style={[styles.dot, { backgroundColor: meta.color }]} />
+          <Text style={[styles.status, { color: meta.color }]}>{meta.label}</Text>
+        </View>
       </View>
+
       <Text style={styles.hint}>
         {camera.last_error.trim() === '' ? meta.hint : camera.last_error}
       </Text>
-      <Text style={styles.moment}>最近一张：{formatMoment(camera.last_frame_at_utc)}</Text>
+
       <View style={styles.actions}>
         <Pressable
           onPress={onTest}
@@ -84,9 +94,7 @@ function CameraCard({ camera }: { camera: CameraItem }) {
           accessibilityLabel={`测试 ${camera.label} 能不能连上`}
           style={({ pressed }) => [styles.action, pressed && clayPress]}
         >
-          <Text style={styles.actionText}>
-            {test.isPending ? '正在试…' : '试试连得上'}
-          </Text>
+          <Text style={styles.actionText}>{test.isPending ? '正在试…' : '试试连得上'}</Text>
         </Pressable>
         <Pressable
           onPress={onSnapshot}
@@ -95,17 +103,15 @@ function CameraCard({ camera }: { camera: CameraItem }) {
           accessibilityLabel={`让 ${camera.label} 现在拍一张`}
           style={({ pressed }) => [styles.action, pressed && clayPress]}
         >
-          <Text style={styles.actionText}>
-            {snapshot.isPending ? '正在拍…' : '现在拍一张'}
-          </Text>
+          <Text style={styles.actionText}>{snapshot.isPending ? '正在拍…' : '现在拍一张'}</Text>
         </Pressable>
         <Pressable
           onPress={onDelete}
           accessibilityRole="button"
           accessibilityLabel={`删除摄像头 ${camera.label}`}
-          style={({ pressed }) => [styles.action, pressed && clayPress]}
+          style={({ pressed }) => [styles.actionGhost, pressed && clayPress]}
         >
-          <Text style={[styles.actionText, styles.danger]}>删掉</Text>
+          <Text style={styles.actionGhostText}>删掉</Text>
         </Pressable>
       </View>
     </Card>
@@ -122,7 +128,7 @@ export default function CamerasScreen() {
       <Screen>
         <Card>
           <EmptyState
-            icon="cloud-offline"
+            icon="cloud-offline-outline"
             title="App 还没连上电脑"
             subtitle="先回到「我的」，填好地址。"
           />
@@ -140,14 +146,18 @@ export default function CamerasScreen() {
       {cameras.isPending ? <Text style={styles.subtitle}>正在加载…</Text> : null}
       {cameras.isError ? (
         <Card>
-          <EmptyState icon="alert-circle" title="没加载出来" subtitle={cameras.error.message} />
+          <EmptyState
+            icon="alert-circle-outline"
+            title="没加载出来"
+            subtitle={cameras.error.message}
+          />
         </Card>
       ) : null}
 
       {items.length === 0 && !cameras.isPending && !cameras.isError ? (
         <Card>
           <EmptyState
-            icon="videocam"
+            icon="videocam-outline"
             title="还没有接摄像头"
             subtitle="支持萤石云，也支持能给出 RTSP 地址的网络摄像头。"
           />
@@ -159,67 +169,95 @@ export default function CamerasScreen() {
       ))}
 
       <PrimaryButton title="接一个摄像头" onPress={() => router.push('/camera-new')} />
-      <SecondaryButton title="怎么找摄像头的地址" onPress={() => router.push('/knowledge')} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
+    ...type.bodySm,
     color: colors.mutedForeground,
   },
   card: {
-    gap: 6,
+    gap: space.md,
   },
   headRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.md,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headText: {
+    flex: 1,
+    gap: 2,
   },
   label: {
-    flex: 1,
+    ...type.heading,
     fontSize: 16,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  status: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  hint: {
-    fontSize: 13,
-    lineHeight: 20,
     color: colors.foreground,
   },
   moment: {
+    ...type.caption,
     fontSize: 12,
     color: colors.mutedForeground,
   },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: 5,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.pill,
+  },
+  status: {
+    ...type.caption,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  hint: {
+    ...type.bodySm,
+    color: colors.body,
+  },
   actions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
+    gap: space.sm,
+    flexWrap: 'wrap',
   },
   action: {
-    minHeight: 44,
+    minHeight: 40,
     justifyContent: 'center',
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
   },
   actionText: {
-    fontSize: 14,
+    ...type.caption,
     fontWeight: '700',
     color: colors.primaryDark,
   },
-  danger: {
-    color: colors.destructive,
+  actionGhost: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    borderColor: colors.border,
   },
-  empty: {
-    borderRadius: radius.md,
+  actionGhostText: {
+    ...type.caption,
+    fontWeight: '600',
+    color: colors.mutedForeground,
   },
 });

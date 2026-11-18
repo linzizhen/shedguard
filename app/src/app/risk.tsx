@@ -4,9 +4,9 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PageHeader, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
+import { Card, EmptyState, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
 import { useRiskAssessment } from '@/hooks/useRisk';
-import { colors, radius } from '@/lib/theme';
+import { colors, hairline, radius, space, type } from '@/lib/theme';
 import type { RiskAnswers, RiskAssessmentResult } from '@/lib/types';
 
 type QuestionKey = keyof RiskAnswers;
@@ -77,10 +77,13 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-const LEVEL_META: Record<RiskAssessmentResult['level'], { label: string; color: string; bg: string }> = {
-  low: { label: '风险较低', color: colors.success, bg: '#DCFCE7' },
-  moderate: { label: '需要留意', color: colors.warning, bg: '#FEF3C7' },
-  high: { label: '高风险', color: colors.destructive, bg: '#FEE2E2' },
+const LEVEL_META: Record<
+  RiskAssessmentResult['level'],
+  { label: string; color: string; bg: string }
+> = {
+  low: { label: '风险较低', color: colors.success, bg: colors.successSoft },
+  moderate: { label: '需要留意', color: colors.warning, bg: colors.warningSoft },
+  high: { label: '高风险', color: colors.destructive, bg: colors.destructiveSoft },
 };
 
 export default function RiskScreen() {
@@ -108,8 +111,8 @@ export default function RiskScreen() {
     const meta = LEVEL_META[result.level];
     return (
       <Screen>
-        <PageHeader title="评估结果" subtitle="根据你的回答给出的风险提示" />
-        <Card style={[styles.resultCard, { borderColor: meta.color }]}>
+        <Text style={styles.intro}>根据你的回答给出的风险提示，仅供参考，不替代看诊。</Text>
+        <Card style={{ gap: space.md }}>
           <View style={[styles.levelBadge, { backgroundColor: meta.bg }]}>
             <Text style={[styles.levelText, { color: meta.color }]}>{meta.label}</Text>
           </View>
@@ -128,7 +131,7 @@ export default function RiskScreen() {
           )}
         </Card>
         {result.vet_warning ? (
-          <Card style={styles.vetCard}>
+          <Card tone="soft" style={styles.vetCard}>
             <Text style={styles.vetTitle}>需要就医</Text>
             <Text style={styles.vetText}>{result.vet_warning}</Text>
           </Card>
@@ -140,9 +143,9 @@ export default function RiskScreen() {
 
   return (
     <Screen>
-      <PageHeader title="卡皮风险评估" subtitle="回答六个问题，看看蜕皮不全的风险" />
+      <Text style={styles.intro}>回答六个问题，看看蜕皮不全的风险。</Text>
       {QUESTIONS.map((question, qIndex) => (
-        <Card key={question.key} style={styles.questionCard}>
+        <Card key={question.key} style={{ gap: space.md }}>
           <Text style={styles.questionTitle}>
             {qIndex + 1}. {question.title}
           </Text>
@@ -158,7 +161,9 @@ export default function RiskScreen() {
                   <View style={[styles.radio, active && styles.radioActive]}>
                     {active ? <View style={styles.radioDot} /> : null}
                   </View>
-                  <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>{option.label}</Text>
+                  <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>
+                    {option.label}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -168,7 +173,11 @@ export default function RiskScreen() {
 
       {riskMutation.isError ? (
         <Card>
-          <EmptyState icon="alert-circle" title="提交失败" subtitle={riskMutation.error.message} />
+          <EmptyState
+            icon="alert-circle-outline"
+            title="提交失败"
+            subtitle={riskMutation.error.message}
+          />
         </Card>
       ) : null}
 
@@ -183,49 +192,49 @@ export default function RiskScreen() {
 }
 
 const styles = StyleSheet.create({
-  questionCard: { gap: 12 },
-  questionTitle: { fontSize: 16, fontWeight: '700', color: colors.foreground },
-  optionList: { gap: 10 },
+  intro: { ...type.bodySm, color: colors.mutedForeground },
+  questionTitle: { ...type.heading, color: colors.foreground },
+  optionList: { gap: space.sm },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    borderWidth: 3,
+    gap: space.sm,
+    borderWidth: hairline,
     borderColor: colors.border,
     borderRadius: radius.md,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: space.md,
+    paddingHorizontal: space.md,
+    minHeight: 52,
     backgroundColor: colors.card,
   },
-  optionActive: { borderColor: colors.primary, backgroundColor: colors.background },
+  optionActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   radio: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.mutedForeground,
+    borderWidth: hairline,
+    borderColor: colors.faintForeground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioActive: { borderColor: colors.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
-  optionLabel: { flex: 1, fontSize: 15, color: colors.foreground },
-  optionLabelActive: { fontWeight: '700', color: colors.primaryDark },
-  resultCard: { borderWidth: 3, gap: 12 },
+  optionLabel: { ...type.body, flex: 1, color: colors.body },
+  optionLabelActive: { fontWeight: '700', color: colors.foreground },
   levelBadge: {
     alignSelf: 'flex-start',
-    borderRadius: radius.md,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    paddingVertical: space.xs + 2,
+    paddingHorizontal: space.lg,
   },
-  levelText: { fontSize: 18, fontWeight: '800' },
-  scoreText: { fontSize: 15, fontWeight: '700', color: colors.foreground },
-  factorList: { gap: 8 },
-  factorRow: { flexDirection: 'row', gap: 10 },
-  factorPoints: { fontSize: 14, fontWeight: '800', color: colors.destructive, width: 32 },
-  factorDetail: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.foreground },
-  factorEmpty: { fontSize: 14, color: colors.mutedForeground },
-  vetCard: { borderColor: colors.destructive, borderWidth: 3, gap: 6 },
-  vetTitle: { fontSize: 15, fontWeight: '800', color: colors.destructive },
-  vetText: { fontSize: 14, lineHeight: 21, color: colors.foreground },
+  levelText: { ...type.heading },
+  scoreText: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
+  factorList: { gap: space.sm },
+  factorRow: { flexDirection: 'row', gap: space.sm },
+  factorPoints: { ...type.bodySm, fontWeight: '800', color: colors.destructive, width: 32 },
+  factorDetail: { ...type.bodySm, flex: 1, color: colors.body },
+  factorEmpty: { ...type.bodySm, color: colors.mutedForeground },
+  vetCard: { borderColor: colors.destructive, gap: space.xs + 2 },
+  vetTitle: { ...type.heading, color: colors.destructive },
+  vetText: { ...type.bodySm, color: colors.body },
 });

@@ -1,5 +1,5 @@
 /**
- * 蜕皮记录：最上面一条提醒，下面是"什么时候开始、什么时候蜕完"的时间线。
+ * 蜕皮记录：最上面一条提醒，下面是「什么时候开始、什么时候蜕完」的时间线。
  * 文案全部口语化，不出现内部状态名。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -29,7 +29,7 @@ import { useDeviceId } from '@/lib/deviceId';
 import { todayIso } from '@/lib/dates';
 import { alertTitle, recordLabel } from '@/lib/resultCopy';
 import { useServerUrl } from '@/lib/serverUrl';
-import { colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, shadow, space, type } from '@/lib/theme';
 import type { ShedRecord } from '@/lib/types';
 
 function shortDate(iso: string): string {
@@ -109,7 +109,7 @@ export default function LogScreen() {
         <PageHeader title="蜕皮记录" subtitle="每次蜕皮记一条，方便回看" />
         <Card>
           <EmptyState
-            icon="cloud-offline"
+            icon="cloud-offline-outline"
             title="App 还没连上电脑"
             subtitle="在「我的 → 高级设置」里填入电脑地址。"
           />
@@ -120,7 +120,10 @@ export default function LogScreen() {
 
   return (
     <Screen>
-      <PageHeader title="蜕皮记录" subtitle={pet ? `记录 ${pet.name} 的每一次蜕皮` : '每次蜕皮记一条'} />
+      <PageHeader
+        title="蜕皮记录"
+        subtitle={pet ? `记录 ${pet.name} 的每一次蜕皮` : '每次蜕皮记一条'}
+      />
 
       {latestAlert ? (
         <Pressable
@@ -139,30 +142,32 @@ export default function LogScreen() {
             })
           }
           accessibilityRole="button"
-          style={({ pressed }) => [styles.alertCard, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.alertCard, pressed && clayPress]}
         >
           <View style={styles.alertIcon}>
-            <Ionicons name="notifications" size={22} color={colors.primaryDark} />
+            <Ionicons name="notifications" size={20} color={colors.primaryDark} />
           </View>
           <View style={styles.alertBody}>
             <Text style={styles.alertTitle}>{alertTitle(latestAlert.kind, pet?.name)}</Text>
-            <Text style={styles.alertMeta}>
-              {shortDate(latestAlert.local_date)} · 点开看看
-            </Text>
+            <Text style={styles.alertMeta}>{shortDate(latestAlert.local_date)} · 点开看看</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
+          <Ionicons name="chevron-forward" size={18} color={colors.primaryDark} />
         </Pressable>
       ) : null}
 
       {petId === '' ? (
-        <Card style={{ gap: 12 }}>
-          <EmptyState icon="paw" title="还没有你的守宫" subtitle="先建个档案，再来记录蜕皮" />
+        <Card style={{ gap: space.md }}>
+          <EmptyState
+            icon="paw-outline"
+            title="还没有你的守宫"
+            subtitle="先建个档案，再来记录蜕皮"
+          />
           <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
         </Card>
       ) : (
         <>
           {formOpen ? (
-            <Card style={{ gap: 14 }}>
+            <Card style={{ gap: space.lg }}>
               <Text style={styles.formTitle}>记一次蜕皮</Text>
               <Field
                 label="哪天开始蜕的"
@@ -180,6 +185,7 @@ export default function LogScreen() {
                   value={completed}
                   onValueChange={setCompleted}
                   trackColor={{ true: colors.primary, false: colors.border }}
+                  thumbColor="#FFFFFF"
                 />
               </View>
               <Field
@@ -205,28 +211,50 @@ export default function LogScreen() {
 
           {recordsQuery.isLoading ? (
             <Card>
-              <EmptyState icon="hourglass" title="加载中…" />
+              <EmptyState icon="hourglass-outline" title="加载中…" />
             </Card>
           ) : records.length === 0 ? (
             <Card>
               <EmptyState
-                icon="calendar"
+                icon="calendar-outline"
                 title="还没有记录"
                 subtitle="守宫蜕皮时点上面那个按钮记一条，以后就能看出规律。"
               />
             </Card>
           ) : (
             <View style={styles.timeline}>
-              {records.map((record) => (
+              {records.map((record, index) => (
                 <View key={record.id} style={styles.recordRow}>
-                  <View style={styles.timelineDot} />
+                  <View style={styles.rail}>
+                    <View style={[styles.dot, !record.completed_on && styles.dotLive]} />
+                    {index < records.length - 1 ? <View style={styles.railLine} /> : null}
+                  </View>
                   <View style={styles.recordBody}>
-                    <Text style={styles.recordDate}>{shortDate(record.started_on)}</Text>
-                    <Text style={styles.recordState}>
-                      {record.completed_on
-                        ? `${recordLabel(record.completed_on)} · ${shortDate(record.completed_on)}`
-                        : recordLabel(null)}
-                    </Text>
+                    <View style={styles.recordHead}>
+                      <Text style={styles.recordDate}>{shortDate(record.started_on)}</Text>
+                      <View
+                        style={[
+                          styles.statePill,
+                          record.completed_on ? styles.statePillDone : styles.statePillLive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statePillText,
+                            record.completed_on
+                              ? styles.statePillTextDone
+                              : styles.statePillTextLive,
+                          ]}
+                        >
+                          {recordLabel(record.completed_on)}
+                        </Text>
+                      </View>
+                    </View>
+                    {record.completed_on ? (
+                      <Text style={styles.recordState}>
+                        蜕完于 {shortDate(record.completed_on)}
+                      </Text>
+                    ) : null}
                     {record.notes ? <Text style={styles.recordNotes}>{record.notes}</Text> : null}
                     <View style={styles.recordActions}>
                       {record.completed_on ? null : (
@@ -261,129 +289,161 @@ const styles = StyleSheet.create({
   alertCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.card,
+    gap: space.md,
+    backgroundColor: colors.primarySoft,
     borderRadius: radius.lg,
-    borderWidth: 3,
-    borderColor: colors.primary,
-    padding: 14,
-  },
-  pressed: {
-    opacity: 0.85,
+    padding: space.md + 2,
   },
   alertIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.background,
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   alertBody: {
     flex: 1,
-    gap: 3,
+    gap: 2,
   },
   alertTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...type.heading,
     color: colors.foreground,
   },
   alertMeta: {
-    fontSize: 13,
-    color: colors.mutedForeground,
+    ...type.caption,
+    color: colors.primaryDark,
   },
   formTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    ...type.heading,
     color: colors.foreground,
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
   },
   switchLabel: {
-    fontSize: 15,
-    fontWeight: '700',
+    ...type.body,
+    fontWeight: '600',
     color: colors.foreground,
   },
   switchHint: {
-    fontSize: 12,
+    ...type.caption,
     color: colors.mutedForeground,
     marginTop: 2,
   },
   error: {
-    fontSize: 14,
+    ...type.caption,
     color: colors.destructive,
   },
   timeline: {
-    gap: 4,
+    gap: 0,
   },
   recordRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: space.md,
   },
-  timelineDot: {
+  rail: {
     width: 12,
-    height: 12,
-    borderRadius: 6,
+    alignItems: 'center',
+    paddingTop: space.lg,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+  },
+  dotLive: {
     backgroundColor: colors.primary,
-    marginTop: 6,
+  },
+  railLine: {
+    flex: 1,
+    width: hairline,
+    backgroundColor: colors.border,
+    marginTop: space.xs,
   },
   recordBody: {
     flex: 1,
     backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 2,
+    borderRadius: radius.lg,
+    borderWidth: hairline,
     borderColor: colors.border,
-    padding: 14,
-    gap: 4,
-    marginBottom: 10,
+    padding: space.lg,
+    gap: space.xs,
+    marginBottom: space.md,
+    ...shadow.card,
+  },
+  recordHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
   },
   recordDate: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...type.heading,
     color: colors.foreground,
   },
+  statePill: {
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: 3,
+  },
+  statePillDone: {
+    backgroundColor: colors.muted,
+  },
+  statePillLive: {
+    backgroundColor: colors.primarySoft,
+  },
+  statePillText: {
+    ...type.caption,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statePillTextDone: {
+    color: colors.mutedForeground,
+  },
+  statePillTextLive: {
+    color: colors.primaryDark,
+  },
   recordState: {
-    fontSize: 14,
+    ...type.caption,
     color: colors.mutedForeground,
   },
   recordNotes: {
-    fontSize: 14,
-    color: colors.foreground,
-    lineHeight: 20,
+    ...type.bodySm,
+    color: colors.body,
+    marginTop: 2,
   },
   recordActions: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
+    gap: space.sm,
+    marginTop: space.sm,
   },
   smallButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: space.md,
     minHeight: 40,
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
   },
   smallButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    ...type.caption,
     fontWeight: '700',
+    color: colors.primaryDark,
   },
   smallButtonGhost: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: space.md,
     minHeight: 40,
     justifyContent: 'center',
-    borderRadius: radius.md,
-    borderWidth: 2,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
     borderColor: colors.border,
   },
   smallButtonGhostText: {
+    ...type.caption,
+    fontWeight: '600',
     color: colors.mutedForeground,
-    fontSize: 13,
-    fontWeight: '700',
   },
 });

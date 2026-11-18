@@ -78,12 +78,27 @@ app/
 │   │   ├── topic/[slug].tsx    # 知识详情
 │   │   ├── risk.tsx            # 卡皮风险评估问卷
 │   │   └── contribution.tsx    # 分享照片（数据贡献开关、列表、撤回、导出）
-│   ├── components/             # ui.tsx 黏土风基础件、PetForm、PetPicker
-│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts / usePortraits / useContributions）
-│   └── lib/                    # theme / api / auth / serverUrl / deviceId / onboarding / resultCopy / types / dates
+│   ├── components/             # ui.tsx 基础件（Screen/Card/按钮/Field/ListRow/Badge）、PetForm、PetPicker
+│   ├── hooks/                  # React Query hooks（usePets / useShed / useKnowledge / useRisk / useAlerts / usePortraits / useContributions / useCameras）
+│   └── lib/                    # theme / api / auth / serverUrl / deviceId / onboarding / resultCopy / upload / types / dates
 ├── app.json                    # Expo 配置（CNG，勿手建 ios/android）
 └── tsconfig.json               # strict + @/* 路径别名
 ```
+
+## 视觉规范
+
+全部样式从 `src/lib/theme.ts` 的令牌取值，**页面里不写字面量**：
+
+| 令牌 | 内容 |
+|---|---|
+| `colors` | 21 色。主色 `primary #F97316`、`primarySoft #FFEDD5`（浅底）、`primaryDark #C2410C`（文字/图标）、背景 `background #FFF7ED`、卡片 `card #FFFFFF`、描边 `border #F0E2D3`、正文 `body #431407`、弱化 `mutedForeground #6B6259`（对比度达标）、语义色 `success/warning/destructive` 各带 `*Soft` 浅底 |
+| `space` | 8pt 栅格：`xs 4 / sm 8 / md 12 / lg 16 / xl 20 / xxl 24 / xxxl 32` |
+| `type` | `display 28` / `title 21` / `heading 17` / `body 16` / `bodySm 14` / `caption 13` / `label 12` / `button 16`，每档含 `lineHeight` 与 `fontWeight` |
+| `radius` | `sm 10 / md 14 / lg 18 / xl 26 / pill 999` |
+| `shadow` | `card`（极淡，0/4）与 `raised`（主按钮与浮起元素，0/10） |
+| `hairline` | 统一 1px 描边宽度；**不再用 3px 粗边** |
+
+约定：可点元素 ≥44px 高且带按压反馈；不用 emoji 当图标，一律 `@expo/vector-icons`；Stack 已有标题的页面不再放 `PageHeader`（会重复）。
 
 ## 质量门
 

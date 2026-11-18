@@ -12,7 +12,7 @@ import { Card, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
 import { usePortraitFeedback } from '@/hooks/usePortraits';
 import { ensureToken, portraitUrl } from '@/lib/auth';
 import { formatDateCn } from '@/lib/dates';
-import { colors, radius } from '@/lib/theme';
+import { colors, radius, space, type } from '@/lib/theme';
 
 export default function PortraitScreen() {
   const params = useLocalSearchParams<{ id: string; local_date?: string }>();
@@ -96,47 +96,45 @@ export default function PortraitScreen() {
 
 const styles = StyleSheet.create({
   subtitle: {
-    fontSize: 14,
+    ...type.bodySm,
     color: colors.mutedForeground,
   },
   imageCard: {
-    padding: 8,
+    padding: space.sm,
   },
   image: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: radius.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.muted,
   },
   imagePlaceholder: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: radius.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   placeholderText: {
-    fontSize: 14,
+    ...type.bodySm,
     color: colors.mutedForeground,
   },
   tipCard: {
-    paddingVertical: 12,
+    paddingVertical: space.md,
   },
   tipRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
   },
   tipText: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.foreground,
+    ...type.bodySm,
+    color: colors.body,
   },
   hint: {
-    fontSize: 13,
-    lineHeight: 20,
+    ...type.caption,
     color: colors.mutedForeground,
   },
 });

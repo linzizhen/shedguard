@@ -8,7 +8,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card, Field, PrimaryButton, Screen } from '@/components/ui';
 import { useCreateCamera, useTestCamera } from '@/hooks/useCameras';
 import type { CameraProvider } from '@/lib/types';
-import { clayPress, colors, radius } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
 
 const PROVIDERS: { key: CameraProvider; label: string; hint: string }[] = [
   { key: 'rtsp', label: '网络摄像头', hint: '能给出一条 rtsp:// 地址' },
@@ -189,37 +189,36 @@ export default function CameraNewScreen() {
 
 const styles = StyleSheet.create({
   subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
+    ...type.bodySm,
     color: colors.mutedForeground,
   },
   card: {
-    gap: 10,
+    gap: space.md,
   },
   sectionTitle: {
+    ...type.heading,
     fontSize: 15,
-    fontWeight: '700',
     color: colors.foreground,
   },
   providerRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: space.sm,
   },
   provider: {
     flex: 1,
     gap: 2,
-    padding: 12,
+    padding: space.md,
     borderRadius: radius.md,
-    borderWidth: 2,
+    borderWidth: hairline,
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
   providerActive: {
     borderColor: colors.primary,
-    backgroundColor: '#FFEDD5',
+    backgroundColor: colors.primarySoft,
   },
   providerLabel: {
-    fontSize: 15,
+    ...type.bodySm,
     fontWeight: '700',
     color: colors.foreground,
   },
@@ -227,12 +226,12 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
   },
   providerHint: {
+    ...type.caption,
     fontSize: 12,
     color: colors.mutedForeground,
   },
   note: {
-    fontSize: 12,
-    lineHeight: 18,
+    ...type.caption,
     color: colors.mutedForeground,
   },
 });

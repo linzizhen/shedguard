@@ -6,8 +6,9 @@ import { useMemo, useState } from 'react';
 import { Alert, View, StyleSheet } from 'react-native';
 
 import { PetForm, toPetInput, type PetFormValue } from '@/components/PetForm';
-import { EmptyState, PageHeader, PrimaryButton, Screen } from '@/components/ui';
+import { EmptyState, PrimaryButton, Screen } from '@/components/ui';
 import { useDeletePet, usePets, useUpdatePet } from '@/hooks/usePets';
+import { space } from '@/lib/theme';
 
 export default function EditPetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -54,7 +55,7 @@ export default function EditPetScreen() {
   if (pets.isPending) {
     return (
       <Screen>
-        <PageHeader title="编辑宠物" />
+        <EmptyState icon="hourglass-outline" title="加载中…" />
       </Screen>
     );
   }
@@ -62,7 +63,6 @@ export default function EditPetScreen() {
   if (!pet) {
     return (
       <Screen>
-        <PageHeader title="编辑宠物" />
         <EmptyState icon="help-circle-outline" title="找不到这只宠物" subtitle="可能已被删除" />
       </Screen>
     );
@@ -82,7 +82,6 @@ export default function EditPetScreen() {
 
   return (
     <Screen>
-      <PageHeader title="编辑宠物" subtitle={pet.name} />
       <PetForm
         initial={initial}
         submitTitle="保存修改"
@@ -99,6 +98,6 @@ export default function EditPetScreen() {
 
 const styles = StyleSheet.create({
   dangerZone: {
-    marginTop: 8,
+    marginTop: space.sm,
   },
 });
