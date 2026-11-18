@@ -5,7 +5,7 @@
 | 模型 | 任务 | 产物 | 服务端配置 |
 |---|---|---|---|
 | 检测器 | 守宫在画面里的哪个位置 | `ml/models/gecko-det.onnx` | `SHEDGUARD_DETECTOR_MODEL` |
-| 状态分类器 | 裁剪出的守宫处于哪个蜕皮阶段 | `ml/models/gecko-state.onnx` + `.labels.json` | `SHEDGUARD_STATE_MODEL` |
+| 状态分类器 | 裁剪出的守宫处于哪个蜕皮阶段 | `ml/models/gecko-state-v2.onnx` + `.labels.json` | `SHEDGUARD_STATE_MODEL` |
 
 分开训的理由：状态定义会反复调整（先是「蜕皮中」，后来加了「蒙白」，将来可能还要分「卡皮」），而「守宫在哪」这个任务半年不用动。捆在一个模型里，每改一次状态定义就要重训一次检测器。
 
@@ -130,7 +130,7 @@ RTX 5070 上 15 个 epoch 约 2 分钟，`resnet18` ImageNet 预训练微调，`
 
 早前用简单增强跑的一次探路是 93.75%，这里低 2.7 点——训练配置不同（加了 `RandomResizedCrop`、颜色抖动与余弦退火），不是同一条件下的退化。没有针对这批数据继续调参：它本来就不是产品数据，调出来的数字没有意义。
 
-服务端集成验证：`OnnxStateClassifier.from_path` 直接加载 44.8 MB 的 `gecko-state.onnx`，真图端到端冒烟里 5 张蜕皮图 4 张判对（置信度 0.997–1.0），1 张置信度 0.513 被降级为 `unknown`，3 张正常图全对。
+服务端集成验证：`OnnxStateClassifier.from_path` 直接加载 44.8 MB 的 `gecko-state-v2.onnx`，真图端到端冒烟里 5 张蜕皮图 4 张判对（置信度 0.997–1.0），1 张置信度 0.513 被降级为 `unknown`，3 张正常图全对。
 
 ## 状态分类器：并入网络复核数据（gecko-state-v2，2026-11-11）
 

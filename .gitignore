@@ -37,7 +37,11 @@ dist/
 *.map
 
 # ---- 数据与密钥 ----
-data/
+# 数据目录整体不入库；只放行人工复核结论（不可再生，33 KB）
+data/*
+!data/collected_crops/
+data/collected_crops/*
+!data/collected_crops/review.csv
 *.db
 *.sqlite
 .env
@@ -66,3 +70,11 @@ ml/models/
 runs/
 *.onnx
 *.pt
+
+# ---- 临时产物（测试报告、覆盖率、日志、打包件）----
+junit*.xml
+coverage.xml
+coverage*.json
+*.log
+*.zip
+.expo/
