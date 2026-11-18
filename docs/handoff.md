@@ -156,6 +156,8 @@ shedguard/
 28. **P31 需求验证（当前主线，阻塞于真摄像头与用户）** —— 用 P30 接 20–30 个真实用户跑 2–4 周，验证「蜕皮提醒是否真被需要」与真实准确率。
 26. ~~P29 数据贡献（用户自愿分享照片）~~ —— 已完成（2026-11-16）：`domain/contribution.py` 路径与元数据白名单 + `infra/contribution_upload.py`（`ContributionUploader` Protocol / `HuggingFaceUploader` / `NoopUploader`）+ `services/contributions.py`（入队、上传、撤回、打包）+ `api/routes/contributions.py` 8 个端点 + 迁移 `0009_contributions`（三张表）+ 9 项 `SHEDGUARD_CONTRIBUTION_*`；App `/contribution` 页与「我的」入口。服务端 **480 测试 / 覆盖率 94.06%**。唯一未验证：真收件箱未建，需按 `docs/contribution-setup.md` 建私有 HF 数据集仓库与 fine-grained token 后跑一次真上传。
 
+29. ~~P32 App 视觉重做~~ —— 已完成（2026-11-18）：`src/lib/theme.ts` 重写为令牌制（21 色 + 8pt 间距 + 8 级字号 + 2 档阴影 + 5 档圆角 + `hairline`），`src/components/ui.tsx` 重写并新增 `ListRow`/`Badge`/`Divider`，**14 个页面全部从字面量迁到令牌**、3px 粗边统一为 1px 细边、`PageHeader` 与 Stack 标题重复的四处已删。App `tsc --noEmit` + `eslint .` 全绿，11 屏 430×932 截图逐张核对通过。设计方向来自 `ui-ux-pro-max`（Minimalism & Swiss）；Sleek（`design-mobile-apps`）因免费账号已有活跃 key 无法授权，改为按判据手工重做。**未在真机验证。**
+
 > 为什么先后端：固件的上传目标必须先存在。否则板子写完了也没有真实端点可发，联调只能对着假想端点做，问题会一直拖到集成时才暴露。
 
 ## 环境注意
