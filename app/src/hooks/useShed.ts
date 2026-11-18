@@ -3,9 +3,11 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 
 import { apiFetch } from '@/lib/api';
 import { useServerUrl } from '@/lib/serverUrl';
+import { buildPhotoForm } from '@/lib/upload';
 import type {
   CheckPhotoResult,
   ShedRecord,
@@ -64,16 +66,23 @@ export function useDeleteShedRecord(petId: string) {
   });
 }
 
-/** 用系统相机拍一张（需相机权限） */
+/** 用系统相机拍一张（需相机权限）；网页端没有相机 API，退回选图 */
 export async function takeCheckPhoto(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return pickCheckPhoto();
+  }
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) return null;
-  const result = await ImagePicker.launchCameraAsync({
-    mediaTypes: ['images'],
-    quality: 0.8,
-  });
-  if (result.canceled || !result.assets[0]) return null;
-  return result.assets[0].uri;
+  try {
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return null;
+    return result.assets[0].uri;
+  } catch {
+    return pickCheckPhoto();
+  }
 }
 
 /** 从相册选一张（无需权限） */
@@ -88,8 +97,7 @@ export async function pickCheckPhoto(): Promise<string | null> {
 
 /** 上传照片做蜕皮查验（multipart） */
 export async function checkPhoto(petId: string, uri: string): Promise<CheckPhotoResult> {
-  const form = new FormData();
-  form.append('file', { uri, name: 'check.jpg', type: 'image/jpeg' } as unknown as Blob);
+  const form = await buildPhotoForm(uri);
   return apiFetch<CheckPhotoResult>(`/api/v1/pets/${petId}/check-photo`, {
     method: 'POST',
     body: form,

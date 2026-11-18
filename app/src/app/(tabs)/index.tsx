@@ -49,7 +49,16 @@ export default function HomeScreen() {
       setShowDetail(false);
     },
     onError: (error: Error) => {
-      setErrorText('这张没传上去。检查一下网络，或者靠近一点再拍一张。');
+      const message = error.message ?? '';
+      if (message.includes('太大') || message.includes('PAYLOAD_TOO_LARGE')) {
+        setErrorText('这张照片太大了。换一张小一点的，或者用手机自带编辑器裁一下再试。');
+      } else if (message.includes('格式') || message.includes('UNSUPPORTED_MEDIA_TYPE')) {
+        setErrorText('这个格式看不了。换成 JPG 或 PNG 再试一次。');
+      } else if (message.includes('无法连接') || message.includes('网络')) {
+        setErrorText('连不上电脑上的程序。确认手机和电脑在同一个 Wi-Fi，地址也没填错。');
+      } else {
+        setErrorText('这张没传上去。再试一次，或者换一张。');
+      }
       if (__DEV__) console.warn(error.message);
     },
   });
