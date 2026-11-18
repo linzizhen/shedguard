@@ -241,5 +241,6 @@ shedguard 是一个爬宠蜕皮监测系统：**接入用户已有的家用摄�
 | `docs/specs/2026-11-13-portrait-shots-design.md` | 萌照功能的规格（P25） | 实现后有「实现记录」节 |
 | `docs/specs/2026-11-16-data-contribution-design.md` | 数据贡献（用户自愿分享）的规格（P29） | 实现后有「实现记录」节 |
 | `docs/contribution-setup.md` | 收件箱（私有 HF 数据集仓库 + fine-grained token）配置手册（P29） | 换收件箱或改权限策略时更新 |
+| `docs/migration-guide.md` | 换一台电脑继续开发的迁移方案（哪些入 Git、哪些要手动搬、环境差异、密钥清单） | 依赖大版本升级或目录结构变动时更新 |
 | `docs/roadmap.md` | **早期规划存档（已过期）** | 不再更新，仅供追溯 |
 | `AGENTS.md` | 操作手册与硬边界 | 与本文件同步 |

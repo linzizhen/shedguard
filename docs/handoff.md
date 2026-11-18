@@ -77,6 +77,10 @@ shedguard/
 │   ├── handoff.md            # 本文件
 │   ├── plan.md               # 唯一权威计划（里程碑、当前主线、变更记录）
 │   ├── git-flow.md           # 分支模型与发版/热修流程（2026-11-13 起用 git flow）
+│   ├── migration-guide.md    # 换一台电脑继续开发的迁移方案（哪些入 Git、哪些要手动搬）
+│   ├── lessons.md            # 踩坑与防复发清单（只记真实犯过的错）
+│   ├── market-2026-11-16.md  # 需求与市场调研（含已验证/未验证标注与四条路线对比）
+│   ├── contribution-setup.md # 数据贡献收件箱配置手册（私有 HF 数据集仓库 + token）
 │   ├── roadmap.md            # 早期规划存档（2026-11-12 作废，勿据此开发）
 │   └── specs/
 │       ├── 2026-11-02-server-image-ingest-design.md   # 后端图片接入服务设计规格
