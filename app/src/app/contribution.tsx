@@ -16,7 +16,7 @@ import {
 } from '@/hooks/useContributions';
 import { contributionUrl } from '@/lib/auth';
 import { useServerUrl } from '@/lib/serverUrl';
-import { colors, radius } from '@/lib/theme';
+import { colors, hairline, radius, space, type } from '@/lib/theme';
 import type { ContributionSample, ContributionStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<ContributionStatus, string> = {
@@ -83,7 +83,11 @@ export default function ContributionScreen() {
     return (
       <Screen>
         <Card>
-          <EmptyState icon="cloud-offline" title="App 还没连上电脑" subtitle="先回到「我的」，填好地址。" />
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="App 还没连上电脑"
+            subtitle="先回到「我的」，填好地址。"
+          />
         </Card>
       </Screen>
     );
@@ -114,10 +118,10 @@ export default function ContributionScreen() {
 
       {setting === null ? (
         <Card>
-          <EmptyState icon="hourglass" title="正在读取…" />
+          <EmptyState icon="hourglass-outline" title="正在读取…" />
         </Card>
       ) : (
-        <Card style={{ gap: 12 }}>
+        <Card style={{ gap: space.md }}>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>允许分享</Text>
             <Switch
@@ -126,7 +130,7 @@ export default function ContributionScreen() {
                 updateSettings.mutate({ enabled: next, include_full: includeFull })
               }
               trackColor={{ true: colors.primary, false: colors.border }}
-              thumbColor="#FFFFFF"
+              thumbColor={colors.card}
             />
           </View>
           <Text style={styles.hint}>
@@ -144,7 +148,7 @@ export default function ContributionScreen() {
                 updateSettings.mutate({ enabled: true, include_full: next })
               }
               trackColor={{ true: colors.primary, false: colors.border }}
-              thumbColor="#FFFFFF"
+              thumbColor={colors.card}
             />
           </View>
           <Text style={styles.hint}>
@@ -156,7 +160,7 @@ export default function ContributionScreen() {
       {stats ? (
         <>
           <SectionTitle>分享情况</SectionTitle>
-          <Card style={{ gap: 8 }}>
+          <Card style={{ gap: space.sm }}>
             <Text style={styles.stat}>
               已经分享 {stats.uploaded} 张 · 还有 {stats.pending} 张等着发送
             </Text>
@@ -213,7 +217,7 @@ export default function ContributionScreen() {
           />
         </Card>
       ) : (
-        <Card style={{ gap: 10 }}>
+        <Card style={{ gap: space.sm + 2 }}>
           {samples.map((sample) => (
             <SampleRow
               key={sample.id}
@@ -233,35 +237,21 @@ export default function ContributionScreen() {
 }
 
 const styles = StyleSheet.create({
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.mutedForeground,
-  },
+  subtitle: { ...type.bodySm, color: colors.mutedForeground },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: space.md,
     minHeight: 44,
   },
-  rowLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  rowDisabled: {
-    color: colors.mutedForeground,
-  },
-  stat: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
+  rowLabel: { ...type.body, fontWeight: '700', color: colors.foreground },
+  rowDisabled: { color: colors.faintForeground },
+  stat: { ...type.body, fontWeight: '700', color: colors.foreground },
   sampleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
     minHeight: 56,
   },
   thumb: {
@@ -273,54 +263,26 @@ const styles = StyleSheet.create({
   thumbGone: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: hairline,
     borderColor: colors.border,
   },
-  thumbGoneText: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-  },
-  sampleText: {
-    flex: 1,
-    gap: 2,
-  },
-  sampleTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  sampleHint: {
-    fontSize: 13,
-    color: colors.mutedForeground,
-  },
+  thumbGoneText: { ...type.caption, color: colors.faintForeground },
+  sampleText: { flex: 1, gap: 2 },
+  sampleTitle: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
+  sampleHint: { ...type.caption, color: colors.mutedForeground },
   withdraw: {
     minHeight: 44,
     minWidth: 56,
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  withdrawText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.destructive,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-  hint: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: colors.mutedForeground,
-  },
-  notice: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.accent,
-  },
-  errorText: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.destructive,
-  },
+  withdrawText: { ...type.caption, fontWeight: '700', color: colors.destructive },
+  pressed: { opacity: 0.6 },
+  hint: { ...type.caption, color: colors.mutedForeground },
+  notice: { ...type.bodySm, color: colors.accent },
+  errorText: { ...type.bodySm, color: colors.destructive },
 });

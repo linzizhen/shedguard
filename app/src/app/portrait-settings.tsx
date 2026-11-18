@@ -9,7 +9,7 @@ import { Card, EmptyState, PrimaryButton, Screen, SectionTitle } from '@/compone
 import { usePets } from '@/hooks/usePets';
 import { usePortraitSettings, useUpdatePortraitSettings } from '@/hooks/usePortraits';
 import { useServerUrl } from '@/lib/serverUrl';
-import { colors, radius } from '@/lib/theme';
+import { colors, hairline, radius, space, type } from '@/lib/theme';
 
 function Stepper({
   label,
@@ -84,7 +84,11 @@ export default function PortraitSettingsScreen() {
     return (
       <Screen>
         <Card>
-          <EmptyState icon="cloud-offline" title="App 还没连上电脑" subtitle="先回到「我的」，填好地址。" />
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="App 还没连上电脑"
+            subtitle="先回到「我的」，填好地址。"
+          />
         </Card>
       </Screen>
     );
@@ -93,8 +97,12 @@ export default function PortraitSettingsScreen() {
   if (!petId) {
     return (
       <Screen>
-        <Card style={{ gap: 12 }}>
-          <EmptyState icon="paw" title="还没有你的守宫" subtitle="先建个档案再来设置" />
+        <Card style={{ gap: space.md }}>
+          <EmptyState
+            icon="paw-outline"
+            title="还没有你的守宫"
+            subtitle="先建个档案再来设置"
+          />
           <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
         </Card>
       </Screen>
@@ -105,7 +113,7 @@ export default function PortraitSettingsScreen() {
     return (
       <Screen>
         <Card>
-          <EmptyState icon="hourglass" title="正在读取…" />
+          <EmptyState icon="hourglass-outline" title="正在读取…" />
         </Card>
       </Screen>
     );
@@ -131,14 +139,14 @@ export default function PortraitSettingsScreen() {
     <Screen>
       <Text style={styles.subtitle}>设备会在这段时间里挑一张最好看的留下来</Text>
 
-      <Card style={{ gap: 12 }}>
+      <Card style={{ gap: space.md }}>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>每天拍萌照</Text>
           <Switch
             value={current.enabled}
             onValueChange={(next) => patch({ enabled: next })}
             trackColor={{ true: colors.primary, false: colors.border }}
-            thumbColor="#FFFFFF"
+            thumbColor={colors.card}
           />
         </View>
 
@@ -153,7 +161,7 @@ export default function PortraitSettingsScreen() {
       </Card>
 
       <SectionTitle>拍摄时间</SectionTitle>
-      <Card style={{ gap: 12 }}>
+      <Card style={{ gap: space.md }}>
         <Stepper
           label="开始"
           value={current.start_hour}
@@ -202,60 +210,38 @@ export default function PortraitSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  subtitle: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
+  subtitle: { ...type.bodySm, color: colors.mutedForeground },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: space.md,
     minHeight: 44,
   },
-  rowLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
+  rowLabel: { ...type.body, fontWeight: '700', color: colors.foreground },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.sm,
   },
   stepButton: {
     width: 44,
     height: 44,
     borderRadius: radius.md,
-    borderWidth: 2,
+    borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepDisabled: {
-    opacity: 0.4,
-  },
-  stepText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
+  stepDisabled: { opacity: 0.4 },
+  stepText: { fontSize: 22, fontWeight: '800', color: colors.primaryDark },
   stepValue: {
     minWidth: 64,
     textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '700',
+    ...type.heading,
     color: colors.foreground,
   },
-  hint: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: colors.mutedForeground,
-  },
-  errorText: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.destructive,
-  },
+  hint: { ...type.caption, color: colors.mutedForeground },
+  errorText: { ...type.bodySm, color: colors.destructive },
 });

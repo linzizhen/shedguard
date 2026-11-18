@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 
 import { PetForm, toPetInput, type PetFormValue } from '@/components/PetForm';
-import { PageHeader, Screen } from '@/components/ui';
+import { Screen } from '@/components/ui';
 import { useCreatePet } from '@/hooks/usePets';
 
 export default function NewPetScreen() {
@@ -27,7 +27,6 @@ export default function NewPetScreen() {
 
   return (
     <Screen>
-      <PageHeader title="添加宠物" subtitle="建立守宫档案，开始记录它的蜕皮周期" />
       <PetForm
         submitTitle="保存"
         submitting={submitting}

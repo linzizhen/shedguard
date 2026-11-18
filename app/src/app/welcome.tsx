@@ -11,7 +11,7 @@ import { Card, Field, PrimaryButton, Screen, SecondaryButton } from '@/component
 import { useCreatePet } from '@/hooks/usePets';
 import { markOnboarded } from '@/lib/onboarding';
 import { saveServerUrl, useServerUrl } from '@/lib/serverUrl';
-import { colors, radius } from '@/lib/theme';
+import { colors, hairline, radius, space, type } from '@/lib/theme';
 
 const STEPS = ['欢迎', '起名字', '开始'];
 const SPECIES = ['豹纹守宫', '肥尾守宫', '其他'];
@@ -225,85 +225,78 @@ function Step({ text, index }: { text: string; index: number }) {
 
 const styles = StyleSheet.create({
   hero: {
-    marginTop: 16,
+    marginTop: space.lg,
     alignItems: 'center',
-    gap: 12,
+    gap: space.md,
   },
   badge: {
     width: 84,
     height: 84,
     borderRadius: radius.xl,
-    backgroundColor: colors.card,
-    borderWidth: 3,
-    borderColor: colors.border,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
+    ...type.display,
     fontSize: 24,
-    fontWeight: '800',
+    lineHeight: 32,
     color: colors.foreground,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
-    lineHeight: 23,
+    ...type.body,
     color: colors.mutedForeground,
     textAlign: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: space.sm,
   },
   cardTitle: {
+    ...type.heading,
     fontSize: 16,
-    fontWeight: '800',
     color: colors.foreground,
   },
   bullet: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.foreground,
+    ...type.bodySm,
+    color: colors.body,
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: space.sm,
   },
   stepIndex: {
     width: 26,
     height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.background,
-    borderWidth: 2,
-    borderColor: colors.border,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepIndexText: {
-    fontSize: 13,
+    ...type.caption,
     fontWeight: '800',
     color: colors.primaryDark,
   },
   stepText: {
     flex: 1,
-    fontSize: 15,
-    color: colors.foreground,
+    ...type.bodySm,
+    color: colors.body,
   },
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.foreground,
+    ...type.label,
+    color: colors.mutedForeground,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: space.sm,
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: radius.md,
-    borderWidth: 2,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.muted,
+    backgroundColor: colors.card,
     minHeight: 44,
     justifyContent: 'center',
   },
@@ -312,7 +305,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryDark,
   },
   chipText: {
-    fontSize: 14,
+    ...type.bodySm,
     fontWeight: '700',
     color: colors.mutedForeground,
   },
@@ -320,20 +313,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   hint: {
-    fontSize: 13,
+    ...type.caption,
     color: colors.mutedForeground,
     textAlign: 'center',
   },
   error: {
-    fontSize: 14,
+    ...type.bodySm,
     color: colors.destructive,
     textAlign: 'center',
   },
   progress: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 18,
-    marginBottom: 4,
+    gap: space.lg,
+    marginBottom: space.xs,
   },
   progressItem: {
     alignItems: 'center',
@@ -349,8 +342,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   dotLabel: {
+    ...type.caption,
     fontSize: 11,
-    color: colors.mutedForeground,
+    color: colors.faintForeground,
   },
   dotLabelActive: {
     color: colors.primaryDark,
@@ -362,7 +356,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textButtonLabel: {
-    fontSize: 15,
+    ...type.bodySm,
     fontWeight: '600',
     color: colors.mutedForeground,
   },

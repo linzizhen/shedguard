@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card, EmptyState, Screen } from '@/components/ui';
 import { useKnowledgeTopic } from '@/hooks/useKnowledge';
-import { colors } from '@/lib/theme';
+import { colors, space, type } from '@/lib/theme';
 
 export default function TopicDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -17,7 +17,7 @@ export default function TopicDetailScreen() {
     return (
       <Screen>
         <Card>
-          <EmptyState icon="hourglass" title="加载中…" />
+          <EmptyState icon="hourglass-outline" title="加载中…" />
         </Card>
       </Screen>
     );
@@ -28,7 +28,7 @@ export default function TopicDetailScreen() {
       <Screen>
         <Card>
           <EmptyState
-            icon="cloud-offline"
+            icon="cloud-offline-outline"
             title="无法加载这篇内容"
             subtitle={topicQuery.error?.message ?? '内容不存在'}
           />
@@ -59,11 +59,36 @@ export default function TopicDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 24, fontWeight: '800', color: colors.foreground },
-  summary: { fontSize: 15, lineHeight: 22, color: colors.mutedForeground },
-  section: { gap: 8 },
-  sectionHeading: { fontSize: 17, fontWeight: '700', color: colors.primaryDark },
-  bulletRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
-  bulletDot: { fontSize: 15, color: colors.primary, fontWeight: '800', lineHeight: 22 },
-  bulletText: { flex: 1, fontSize: 15, lineHeight: 22, color: colors.foreground },
+  title: {
+    ...type.display,
+    fontSize: 24,
+    lineHeight: 32,
+    color: colors.foreground,
+  },
+  summary: {
+    ...type.body,
+    color: colors.mutedForeground,
+  },
+  section: {
+    gap: space.sm,
+  },
+  sectionHeading: {
+    ...type.heading,
+    color: colors.primaryDark,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    gap: space.sm,
+    paddingRight: space.xs,
+  },
+  bulletDot: {
+    ...type.body,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  bulletText: {
+    flex: 1,
+    ...type.body,
+    color: colors.body,
+  },
 });

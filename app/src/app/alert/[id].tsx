@@ -6,11 +6,11 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { Card, PageHeader, Screen } from '@/components/ui';
+import { Card, Screen } from '@/components/ui';
 import { useMarkAlertRead } from '@/hooks/useAlerts';
 import { ensureToken, imageUrl } from '@/lib/auth';
 import { formatDateCn } from '@/lib/dates';
-import { colors, radius } from '@/lib/theme';
+import { colors, radius, space, type } from '@/lib/theme';
 
 const STATE_LABEL: Record<string, string> = {
   shedding: '正在蜕皮',
@@ -63,7 +63,8 @@ export default function AlertDetailScreen() {
 
   return (
     <Screen>
-      <PageHeader title={kindMeta?.title ?? label} subtitle={kindMeta?.subtitle ?? ''} />
+      <Text style={styles.kindTitle}>{kindMeta?.title ?? label}</Text>
+      {kindMeta?.subtitle ? <Text style={styles.kindSubtitle}>{kindMeta.subtitle}</Text> : null}
       <Card style={styles.imageCard}>
         {params.image_id && tokenReady ? (
           <Image
@@ -109,7 +110,15 @@ export default function AlertDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  imageCard: { padding: 8 },
+  kindTitle: {
+    ...type.title,
+    color: colors.foreground,
+  },
+  kindSubtitle: {
+    ...type.bodySm,
+    color: colors.mutedForeground,
+  },
+  imageCard: { padding: space.sm },
   image: {
     width: '100%',
     height: 320,
@@ -118,11 +127,12 @@ const styles = StyleSheet.create({
   },
   missing: {
     textAlign: 'center',
-    paddingVertical: 40,
+    paddingVertical: space.xxxl,
+    ...type.bodySm,
     color: colors.mutedForeground,
   },
-  metaCard: { gap: 10 },
+  metaCard: { gap: space.sm + 2 },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  metaKey: { fontSize: 14, color: colors.mutedForeground },
-  metaValue: { fontSize: 14, fontWeight: '700', color: colors.foreground },
+  metaKey: { ...type.bodySm, color: colors.mutedForeground },
+  metaValue: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
 });
