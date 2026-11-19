@@ -30,7 +30,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # 脚本不经 `pip install -e` 也能跑：把 src 放进导入路径。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from huggingface_hub import HfApi
+from huggingface_hub import CommitOperationAdd, HfApi
 from huggingface_hub.utils import HfHubHTTPError
 
 from shedguard_server.config import Settings
@@ -64,6 +64,10 @@ HINT_WRITE = (
     "最常见是 token 只有 Read 没有 Write；"
     "其次是仓库属于别的账号而 token 没跨账号权限。"
 )
+HINT_CACHE = (
+    "若报错里出现「拒绝访问」或 xet logs，是 HuggingFace 的本地缓存目录不可写，"
+    "把环境变量 HF_HOME 指到一个可写目录（例如 HF_HOME=D:\\temp\\hf-home）再跑。"
+)
 
 
 def mask(token: str) -> str:
@@ -81,6 +85,31 @@ def fail(step: str, message: str, hint: str) -> int:
     print(f"[{step}] 失败：{message}")
     print(f"       → {hint}")
     return 1
+
+
+def explain_store_failure(api: HfApi, repo_id: str) -> str:
+    """上传器会把异常吞掉只留 `failed` 路径；这里重试单文件，把真正的错误抓出来。"""
+    path = f"{PROBE_OWNER}/_diag.txt"
+    try:
+        api.create_commit(
+            repo_id,
+            [CommitOperationAdd(path_in_repo=path, path_or_fileobj=b"diag\n")],
+            commit_message="diagnose contribution inbox",
+            repo_type=DEFAULT_REPO_TYPE,
+        )
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    print(f"       诊断文件 {path} 反而写成功了，正在删掉")
+    try:
+        api.delete_file(
+            path,
+            repo_id,
+            commit_message="remove diagnose file",
+            repo_type=DEFAULT_REPO_TYPE,
+        )
+    except Exception as cleanup_exc:
+        print(f"       {path} 删不掉，请到网页手工删除：{cleanup_exc}")
+    return "重试单个文件反而成功了，说明是瞬时故障，再跑一次脚本即可"
 
 
 def whoami_name(api: HfApi) -> str:
@@ -120,16 +149,21 @@ def check_account(api: HfApi) -> str | int:
     try:
         return whoami_name(api)
     except HfHubHTTPError as exc:
+        status = exc.response.status_code
+        if status == 403:
+            # fine-grained token 常常只给仓库权限、不给「读账号信息」，这不算错。
+            print("       token 有效，但没给「读账号信息」权限（fine-grained 常态），跳过")
+            return "（未授权读取）"
         return fail(
             "2/6",
-            f"token 被拒（{exc.response.status_code}）",
+            f"token 被拒（{status}）",
             "重新建一个 token，注意复制完整（hf_ 开头）。",
         )
     except Exception as exc:  # 网络问题要给得出人话
         return fail("2/6", f"连不上 huggingface.co：{exc}", HINT_NETWORK)
 
 
-def check_repo(api: HfApi, repo_id: str, *, create: bool) -> Any:
+def check_repo(api: HfApi, repo_id: str, *, create: bool, account: str = "") -> Any:
     """确保仓库存在；返回 info，出错时返回退出码（int）。"""
     say("3/6", "检查仓库")
     try:
@@ -144,6 +178,15 @@ def check_repo(api: HfApi, repo_id: str, *, create: bool) -> Any:
                 f"查仓库出错（{status}）",
                 "把完整报错留档，先确认仓库名拼写。",
             )
+    # 404：先怀疑账号名写错，这种情况千万别顺手建一个新仓库出来。
+    owner, _, name = repo_id.partition("/")
+    if account and not account.startswith("（") and owner.lower() != account.lower():
+        return fail(
+            "3/6",
+            f"仓库不存在：{repo_id}",
+            f"你账号其实是 {account}，把 .env 里的地址改成 "
+            f"{account}/{name} 再跑一次。",
+        )
     if not create:
         return fail("3/6", f"仓库不存在：{repo_id}", HINT_NO_REPO)
     try:
@@ -179,7 +222,7 @@ def main() -> int:
         return account
     print(f"       账号 = {account}")
 
-    info = check_repo(api, repo_id, create=args.create)
+    info = check_repo(api, repo_id, create=args.create, account=account)
     if isinstance(info, int):
         return info
     private = bool(getattr(info, "private", False))
@@ -215,10 +258,12 @@ def main() -> int:
     )
     result = uploader.store(items)
     if result.uploaded == 0:
+        reason = explain_store_failure(api, repo_id)
+        print(f"       真实错误：{reason}")
         return fail(
             "4/6",
             f"写入失败，失败路径 {list(result.failed)}",
-            HINT_WRITE,
+            f"{HINT_WRITE} {HINT_CACHE}",
         )
     print(f"       已写入 {result.uploaded} 个文件（{paths.crop}）")
 

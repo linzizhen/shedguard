@@ -131,6 +131,7 @@ SHEDGUARD_CONTRIBUTION_UPLOAD_TOKEN=hf_粘贴刚才那串
 | 用户说「我关了开关还在传」 | 后台只会传 `pending` 的存量；关开关不影响已在队列里的样本——要么等它传完，要么在页面点「全部清空」 |
 | 想立刻看效果 | 把 `SHEDGUARD_CONTRIBUTION_UPLOAD_MINUTES` 临时设为 1，验证完改回 30 |
 | `hf_inbox_check.py` 报「连不上 huggingface.co」 | 大陆网络访问 HF 常年不通或极慢。先确认浏览器能打开 huggingface.co；不能就得挂代理，否则这条链路在国内用户机器上根本跑不起来——这时要考虑改用国内对象存储（阿里 OSS / 腾讯 COS）做收件箱，上传器是 `ContributionUploader` 协议，换实现即可 |
+| 报 `拒绝访问 (os error 5)`，并有一行 `xet logs` | HF 新版用 Xet 传文件，会往 `~/.cache/huggingface/xet` 写缓存与日志；该目录不可写（权限、沙箱、磁盘满）时整次上传会静默失败。把 `HF_HOME` 指到可写目录再跑，例如 `$env:HF_HOME="D:\temp\hf-home"` |
 
 ---
 
