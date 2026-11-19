@@ -3,6 +3,12 @@
 > 目的：让手机真正收到「守宫正在蜕皮 / 设备可能离线」的系统通知，而不是只在 App 里看到提醒列表。
 > 适用范围：Expo SDK 58 + `expo-notifications`。**Expo Go 不支持远程推送**，必须做 development build（自定义客户端）。
 
+> ⚠️ **动手前先确认手机能不能收**：Expo 的 Android 远程推送走 FCM，而 FCM 依赖 Google Play 服务（GMS）。
+> 没有 GMS 的国产安卓机（华为/荣耀新机、部分小米、OPPO、vivo 国行）**收不到 Expo 推送**——
+> 这是平台限制，不是配置问题，换 token、重装 App 都没用。
+> 这类手机只能做 **App 真机自测（P20）**：装 APK、跑界面/相机/相册/本地通知。
+> 要验远程推送，得借一台带 GMS 的安卓机，或改走国产推送通道（见第 7 节）。
+
 ## 0. 你会得到什么
 
 - 一个可安装到手机的 App（APK / IPA），打开后不再依赖 Expo Go；
@@ -17,6 +23,7 @@ App 端在拿不到 token 时（Expo Go、网页、未配置 projectId）会退�
 |---|---|
 | Expo 账号 | 免费账号即可（https://expo.dev/signup） |
 | 手机 | Android 8+（推荐，打 APK 最快）或 iPhone（需 Apple 开发者账号才能装到真机） |
+| 手机（收推送） | **必须带 Google Play 服务（GMS）**；没有 GMS 的国产机收不到 Expo 推送，见开头警示与第 7 节 |
 | 电脑 | 本仓库 + Node 24；EAS 构建在云端跑，不需要本地 Android SDK |
 | 服务端 | 手机与服务器在同一局域网，`http://<电脑局域网 IP>:8000` 可访问（防火墙放行 8000） |
 
@@ -121,6 +128,10 @@ Invoke-RestMethod -Uri "https://exp.host/--/api/v2/push/send" -Method Post -Cont
 
 ## 7. 已知限制
 
+- **无 GMS 的手机收不到远程推送**（华为/荣耀新机、部分国产机）。三条出路：
+  1. **借一台带 GMS 的安卓机**做一次性验证——最省事，验完就还；
+  2. **改国产推送通道**（华为 Push Kit / 小米推送 / OPPO / vivo / 个推 / 极光）——每家都要开发者资质与应用审核，工作量按周算，且要改服务端的投递实现；
+  3. **V1 放弃远程推送**，只用 App 内提醒：日志页本来就轮询 `GET /api/v1/alerts` 并显示横幅，`device_silent` / `no_detection` / `shedding_detected` 三类提醒都能看到，只是不开 App 就收不到。以当前「20–30 个真实用户验证需求」的阶段（P31），这条最现实；
 - 本方案仍走 HTTP 明文 + 无 HTTPS，只适合家庭局域网开发联调；
 - Token 存在服务端 `push_devices` 表，明文 AsyncStorage 保存账号令牌，属于现有欠账；
 - EAS 免费额度有限（每月构建次数），不要频繁重打；

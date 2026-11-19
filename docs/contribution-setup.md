@@ -65,6 +65,22 @@ SHEDGUARD_CONTRIBUTION_UPLOAD_TOKEN=hf_粘贴刚才那串
 
 ## 6. 步骤四：验证通路
 
+### 6.1 先只验收件箱（不开 App，一分钟）
+
+在 `server` 目录下跑自检脚本：
+
+```powershell
+..\.venv\Scripts\python.exe scripts\hf_inbox_check.py --create
+```
+
+它把这条链路拆成 6 步逐条打印：读配置 → 验 token → 查仓库（仓库不存在时用 `--create`
+自动建一个**私有** dataset）→ 用服务端真实上传器写一个探针文件 → 读回确认 → 删掉探针。
+任何一步失败都会直接告诉你下一步该改哪里（token 没权限、仓库填错、还是根本连不上）。
+
+看到「结论：收件箱可用」就说明配置没问题，可以往下验整条链路。
+
+### 6.2 再验整条链路
+
 1. 重启服务端：
    ```powershell
    cd server
@@ -83,7 +99,8 @@ SHEDGUARD_CONTRIBUTION_UPLOAD_TOKEN=hf_粘贴刚才那串
    <owner_hash>/2026-11-16/<sha12>.json
    ```
 
-命令行快速核对：
+命令行快速核对（这条需要当前 shell 里有 `SHEDGUARD_CONTRIBUTION_UPLOAD_REPO` 这个环境变量；
+不想设就直接用上面的 6.1 脚本，它自己会读 `server/.env`）：
 
 ```powershell
 ..\.venv\Scripts\python.exe -c "import os;from huggingface_hub import HfApi;print(HfApi().list_repo_files(os.environ['SHEDGUARD_CONTRIBUTION_UPLOAD_REPO'], repo_type='dataset')[:10])"
@@ -113,6 +130,7 @@ SHEDGUARD_CONTRIBUTION_UPLOAD_TOKEN=hf_粘贴刚才那串
 | 一直显示「待上传」 | 上传连续失败 5 次会被标记失败并停止重试；看服务端日志的 `贡献上传失败` 行 |
 | 用户说「我关了开关还在传」 | 后台只会传 `pending` 的存量；关开关不影响已在队列里的样本——要么等它传完，要么在页面点「全部清空」 |
 | 想立刻看效果 | 把 `SHEDGUARD_CONTRIBUTION_UPLOAD_MINUTES` 临时设为 1，验证完改回 30 |
+| `hf_inbox_check.py` 报「连不上 huggingface.co」 | 大陆网络访问 HF 常年不通或极慢。先确认浏览器能打开 huggingface.co；不能就得挂代理，否则这条链路在国内用户机器上根本跑不起来——这时要考虑改用国内对象存储（阿里 OSS / 腾讯 COS）做收件箱，上传器是 `ContributionUploader` 协议，换实现即可 |
 
 ---
 
