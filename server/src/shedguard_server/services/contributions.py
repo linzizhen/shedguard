@@ -45,6 +45,7 @@ from shedguard_server.domain.contribution import (
     export_filename,
     export_relative_path,
     full_relative_path,
+    meta_path_for,
     meta_payload,
     remote_paths,
 )
@@ -258,6 +259,9 @@ class ContributionService:
             for path in (sample.remote_crop_path, sample.remote_full_path)
             if path is not None
         ]
+        if sample.remote_crop_path is not None:
+            # 元数据是随图片成对写入的，不删就会在收件箱里留下孤儿 .json
+            remote_paths_to_remove.append(meta_path_for(sample.remote_crop_path))
         if remote_paths_to_remove:
             self._uploader.delete(remote_paths_to_remove)
 
