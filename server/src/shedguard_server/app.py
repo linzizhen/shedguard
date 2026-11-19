@@ -8,10 +8,10 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -225,6 +225,75 @@ async def _contribution_loop(
         await asyncio.sleep(interval)
 
 
+WEB_ASSET_DIR = "assets"
+# expo export 把打包脚本放在 _expo/static/js 下，文件名同样带内容哈希。
+WEB_EXPO_DIR = "_expo"
+WEB_HASHED_DIRS = (WEB_ASSET_DIR, WEB_EXPO_DIR)
+WEB_INDEX = "index.html"
+WEB_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+WEB_NO_CACHE = "no-cache"
+# 这些前缀归 API 与文档所有，兜底路由不得接管。
+WEB_RESERVED_PREFIXES = ("api/", "docs", "redoc", "openapi.json", "healthz", "readyz")
+
+
+def resolve_web_dir(settings: Settings) -> Path | None:
+    """找到前端构建产物目录；留空时按仓库布局探测 app/dist。"""
+    candidate = (
+        Path(settings.web_dir)
+        if settings.web_dir
+        else Path(__file__).resolve().parents[3] / "app" / "dist"
+    )
+    return candidate if candidate.is_dir() else None
+
+
+def _is_reserved_path(full_path: str) -> bool:
+    return full_path.startswith(WEB_RESERVED_PREFIXES)
+
+
+def _resolve_within(root: Path, full_path: str) -> Path | None:
+    """把请求路径落成 root 下的真实文件；越出 root 一律视为不存在。"""
+    if not full_path:
+        return None
+    try:
+        target = (root / full_path).resolve()
+    except OSError:  # 非法路径（过长、含非法字符）直接当作不存在
+        return None
+    return target if target.is_relative_to(root) else None
+
+
+def _web_cache_header(full_path: str) -> str:
+    if full_path.startswith(tuple(f"{prefix}/" for prefix in WEB_HASHED_DIRS)):
+        return WEB_IMMUTABLE_CACHE
+    return WEB_NO_CACHE
+
+
+def _mount_web(app: FastAPI, settings: Settings) -> None:
+    """把前端构建产物挂到同一个域名下：一个地址既是界面也是接口。"""
+    web_dir = resolve_web_dir(settings)
+    if web_dir is None:
+        if settings.web_dir:
+            logger.warning("配置的前端目录不存在，跳过页面托管 dir=%s", settings.web_dir)
+        else:
+            logger.debug("未找到前端构建产物，跳过页面托管")
+        return
+    root = web_dir.resolve()
+    index = root / WEB_INDEX
+    logger.info("已托管前端构建产物 dir=%s", root)
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_web(full_path: str) -> Response:
+        # 兜底路由在全部 API 路由之后注册，这里只处理「API 没命中」的路径。
+        if _is_reserved_path(full_path):
+            raise HTTPException(status_code=404)
+        target = _resolve_within(root, full_path)
+        if target is not None and target.is_file():
+            return FileResponse(target, headers={"Cache-Control": _web_cache_header(full_path)})
+        if index.is_file():
+            # 前端是单页应用，/log、/portrait/xxx 这类客户端路由都靠 index.html 接管。
+            return FileResponse(index, headers={"Cache-Control": WEB_NO_CACHE})
+        raise HTTPException(status_code=404)
+
+
 def create_app(settings: Settings | None = None, *, create_data_dir: bool = True) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_level, settings.log_format, settings.tzinfo)
@@ -411,4 +480,5 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
     app.include_router(portraits.router)
     app.include_router(contributions.router)
     app.include_router(cameras.router)
+    _mount_web(app, settings)
     return app

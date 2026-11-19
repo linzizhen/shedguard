@@ -11,7 +11,12 @@ from shedguard_server.infra.db import create_db_engine
 
 
 def _client(workdir: Path) -> TestClient:
-    settings = Settings(_env_file=None, data_dir=workdir)  # type: ignore[call-arg]
+    # 显式把 web_dir 指到不存在的目录：默认留空会去探测仓库里的 app/dist，
+    # 一旦本地构建过前端，未知路径就会回落到 index.html（200），
+    # 这个文件测的是错误响应骨架，必须与「有没有构建过前端」无关。
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None, data_dir=workdir, web_dir=str(workdir / "no-web")
+    )
     return TestClient(create_app(settings))
 
 
