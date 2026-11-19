@@ -196,7 +196,7 @@
 
 ---
 
-## 10. 仓库卫生与脚本（踩过 3 次）
+## 10. 仓库卫生与脚本（踩过 5 次）
 
 ### 10.1 `.gitignore` 的 `*.png` 把 App 图标挡在仓库外
 
@@ -226,6 +226,21 @@
 - **正确做法**：`feature-finish` / `release-finish` / `hotfix-finish` 里删分支一律用 `git branch --delete --force`（合并到 develop 这一步已经保证了安全性），并在失败后手工补 `git push --set-upstream origin develop`。
 - **顺带**：远端 feature 分支要显式删（`git push origin --delete feature/x`），脚本不会自动清理。
 - **自查**：`git branch -vv` 里 develop 应显示 `[origin/develop]` 且不落后；本地不应残留已合并的 feature 分支。
+
+### 10.5 `Start-Process` 在本机起不来任何子进程（环境变量大小写重名）
+
+- **现象**：`Start-Process cloudflared.exe -ArgumentList '--version'` 抛 `已添加项。字典中的关键字:“https_proxy”所添加的关键字:“HTTPS_PROXY”`，连 `--version` 都跑不出来；同一条命令在别人的机器上正常。
+- **根因**：本机环境里同时存在 `HTTPS_PROXY` 与 `https_proxy`、`NO_PROXY` 与 `no_proxy`。`Start-Process` 把 `$env:` 复制进新进程时用大小写敏感的比较，撞名即抛异常。
+- **正确做法**：后台起进程一律走 `scripts/spawn_bg.py`（`subprocess.Popen` + `creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`，参数 `--cwd/--out/--err/--env K=V/-- <command…>`，stdout 末行打印 PID），`scripts/tunnel-lib.ps1` 的 `Start-Detached` 就是它的封装。**不要**用 `Start-Process` 起长驻进程。
+- **顺带**：`Invoke-WebRequest` / `Invoke-RestMethod` 对本机 HTTP 端口会报「无法连接到远程服务器」而 Python `urllib` 同时刻正常——验 HTTP 一律用 venv 的 python 写探针，探针里设 `$env:PYTHONIOENCODING='utf-8'`。
+- **自查**：新脚本先实跑一次最小动作（`-SkipTunnel` 起服务、`tunnel.ps1 -Port` 拿网址），确认进程真的起来了（`Get-Process`）再往下写。
+
+### 10.6 新增兜底路由后，老测试可能被「本地构建过前端」影响
+
+- **现象**：给服务端加静态托管后，`tests/integration/test_health.py::test_unknown_path_uses_error_envelope` 突然失败：期望 JSON 404，实际 200 返回了 `index.html`。CI 上是绿的，只有本地构建过 `app/dist` 才红。
+- **根因**：托管目录默认「留空则探测仓库内 `app/dist`」，测试没显式指定 `web_dir`，于是读到了工作区里的真实构建产物。
+- **正确做法**：涉及「默认探测」的测试必须显式钉住配置（`web_dir=str(workdir / "no-web")`），让测试结果与工作区状态无关。
+- **教训**：**任何「留空则去猜」的默认值，测试里都要显式覆盖**；否则「本地能过」与「干净克隆能过」是两件事。
 
 ---
 
