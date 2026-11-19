@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     # 请求速率限制：0 表示关闭；开启后按「客户端 IP + 令牌摘要」分组限流。
     rate_limit_per_minute: int = Field(default=DEFAULT_RATE_LIMIT_PER_MINUTE, ge=0, le=6000)
     rate_limit_burst: int = Field(default=DEFAULT_RATE_LIMIT_BURST, ge=1, le=6000)
+    # 前端构建产物目录：留空时按仓库布局探测 app/dist；目录不存在则不托管页面。
+    web_dir: str = ""
     # 萌照：每天挑一张近景发出来；开关关掉时后台不扫描，接口照常可读。
     portrait_enabled: bool = True
     portrait_scan_minutes: int = Field(default=10, ge=1, le=1440)

@@ -7,10 +7,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 
+import { inferServerUrl } from './serverUrlInfer';
+
 const KEY = 'shedguard.server-url';
 
 /** 开发/演示用：可用 EXPO_PUBLIC_SERVER_URL 预填地址，正式包留空由用户填写。 */
 const DEV_DEFAULT = process.env.EXPO_PUBLIC_SERVER_URL ?? '';
+
+/**
+ * 读当前页面地址。原生端没有 window，返回 null —— 那就保持「由用户填写」。
+ */
+function readLocation(): { origin: string; port: string } | null {
+  const global = globalThis as { location?: { origin: string; port: string } };
+  return global.location ?? null;
+}
 
 let current = '';
 let loaded = false;
@@ -28,7 +38,9 @@ export function getServerUrl(): string {
 /** App 启动时调用一次，从 AsyncStorage 恢复 */
 export async function loadServerUrl(): Promise<void> {
   if (loaded) return;
-  current = (await AsyncStorage.getItem(KEY)) ?? DEV_DEFAULT;
+  const saved = await AsyncStorage.getItem(KEY);
+  // 用户没填过地址时不再要求手填：页面自己就是服务端时，地址取当前页面来源。
+  current = inferServerUrl(saved ?? DEV_DEFAULT, readLocation());
   loaded = true;
   emit();
 }
