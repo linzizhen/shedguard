@@ -59,6 +59,17 @@ curl.exe http://127.0.0.1:8000/healthz
 curl.exe http://127.0.0.1:8000/readyz
 ```
 
+### 数据贡献收件箱自检（P29）
+
+配好 `SHEDGUARD_CONTRIBUTION_UPLOAD_REPO` 与 `..._TOKEN` 之后，用它一条命令验完「token 有效 → 仓库存在且私有 → 能写能读能删」：
+
+```powershell
+$env:HF_HOME = "D:\temp\hf-home"   # 必须指到可写目录，否则 Xet 缓存写不进去
+.\.venv\Scripts\python.exe server\scripts\hf_inbox_check.py --create
+```
+
+`--create` 会在仓库不存在时建一个私有 dataset；`--keep` 保留探针文件（默认上传后立刻删掉）。完整流程见 `docs/contribution-setup.md`。
+
 ## 接口
 
 所有响应都带 `X-Request-Id`；错误响应体统一为：
