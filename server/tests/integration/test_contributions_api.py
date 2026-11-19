@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from shedguard_server.app import create_app
 from shedguard_server.config import Settings
+from shedguard_server.domain.contribution import UploadBatchResult, UploadItem
 from shedguard_server.domain.detection import Detection
 from shedguard_server.domain.imaging import ImageFrame
 from shedguard_server.domain.shedding import ShedState, StatePrediction
@@ -121,6 +122,29 @@ def _enable(client: TestClient, *, include_full: bool = False) -> None:
     assert response.status_code == 200
 
 
+class _RecordingUploader:
+    """记录写入与删除路径的上传器，用来断言「撤回是否连带删远端」。"""
+
+    def __init__(self) -> None:
+        self.stored: list[str] = []
+        self.deleted: list[str] = []
+
+    @property
+    def name(self) -> str:
+        return "recording"
+
+    @property
+    def configured(self) -> bool:
+        return True
+
+    def store(self, items: Sequence[UploadItem]) -> UploadBatchResult:
+        self.stored.extend(item.remote_path for item in items)
+        return UploadBatchResult(uploaded=len(items))
+
+    def delete(self, remote_paths: Sequence[str]) -> None:
+        self.deleted.extend(remote_paths)
+
+
 def _sample_files(client: TestClient) -> list[Path]:
     root = client.app.state.settings.data_dir / "contributions"  # type: ignore[attr-defined]
     if not root.exists():
@@ -211,6 +235,23 @@ class TestWithdraw:
         assert response.status_code == 200
         assert response.json()["upload_status"] == "withdrawn"
         assert _sample_files(client) == []
+
+    def test_withdraw_deletes_remote_meta_too(self, client: TestClient) -> None:
+        """远端图片与元数据是成对写入的，撤回必须两条都删，不能留下孤儿 .json。"""
+        _prepare(client)
+        _enable(client)
+        uploader = _RecordingUploader()
+        client.app.state.contribution_uploader = uploader  # type: ignore[attr-defined]
+        _upload(client, make_jpeg(brightness=100))
+        sample_id = client.get("/api/v1/contributions").json()["items"][0]["id"]
+
+        uploaded = client.post("/api/v1/contributions/upload-now").json()
+        assert uploaded["uploaded"] == 1
+        assert len(uploader.stored) == 2
+        assert any(path.endswith(".json") for path in uploader.stored)
+
+        client.post(f"/api/v1/contributions/{sample_id}/withdraw")
+        assert sorted(uploader.deleted) == sorted(uploader.stored)
 
     def test_withdraw_unknown_sample(self, client: TestClient) -> None:
         _prepare(client)

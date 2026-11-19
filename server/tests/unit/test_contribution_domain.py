@@ -20,6 +20,7 @@ from shedguard_server.domain.contribution import (
     export_filename,
     export_relative_path,
     full_relative_path,
+    meta_path_for,
     meta_payload,
     remote_paths,
 )
@@ -92,6 +93,18 @@ class TestPaths:
         name = export_filename(datetime(2026, 11, 16, 9, 30, 0, tzinfo=UTC))
 
         assert re.fullmatch(r"contribution-\d{8}T\d{6}-[0-9a-f]{6}\.zip", name)
+
+    def test_meta_path_for_mirrors_remote_paths(self) -> None:
+        """撤回要用它还原元数据路径，必须和 remote_paths() 拼出来的完全一致。"""
+        paths = remote_paths(
+            owner_hash="abc123", local_date=date(2026, 11, 16), digest=DIGEST, include_full=True
+        )
+
+        assert meta_path_for(paths.crop) == paths.meta
+        assert meta_path_for(paths.full or "") == "abc123/2026-11-16/0123456789ab.full.json"
+
+    def test_meta_path_for_handles_no_suffix(self) -> None:
+        assert meta_path_for("a/b/0") == "a/b/0.json"
 
 
 class TestContentHash:

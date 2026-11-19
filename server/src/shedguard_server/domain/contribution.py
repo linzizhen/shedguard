@@ -110,6 +110,12 @@ def remote_paths(
     )
 
 
+def meta_path_for(remote_crop_path: str) -> str:
+    """`.json` 与 `.jpg` 是成对写入的，撤回时要按同一套规则还原元数据路径。"""
+    stem, sep, _suffix = remote_crop_path.rpartition(".")
+    return f"{stem}.json" if sep else f"{remote_crop_path}.json"
+
+
 def meta_payload(
     *,
     digest: str,
@@ -277,6 +283,7 @@ __all__ = [
     "export_filename",
     "export_relative_path",
     "full_relative_path",
+    "meta_path_for",
     "meta_payload",
     "remote_paths",
 ]
