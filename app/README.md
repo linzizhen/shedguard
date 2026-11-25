@@ -87,18 +87,31 @@ app/
 
 ## 视觉规范
 
-全部样式从 `src/lib/theme.ts` 的令牌取值，**页面里不写字面量**：
+**方向：纸感极简（P34，2026-11-25）**。全部样式从 `src/lib/theme.ts` 的令牌取值，**页面里不写字面量**。
+
+这套视觉的三条硬规则：
+
+1. **没有卡片边框，也没有阴影**。分层只靠留白、1px 纸线、字号层级。
+2. **唯一彩色是琥珀 `accent #C08A45`**，只用在 8px 方形 `Marker` 与序号上，不做大色块。
+3. **主按钮是近黑实心胶囊**，次按钮是 1px 纸线胶囊，轻操作用下划线文字链接。
 
 | 令牌 | 内容 |
 |---|---|
-| `colors` | 21 色。主色 `primary #F97316`、`primarySoft #FFEDD5`（浅底）、`primaryDark #C2410C`（文字/图标）、背景 `background #FFF7ED`、卡片 `card #FFFFFF`、描边 `border #F0E2D3`、正文 `body #431407`、弱化 `mutedForeground #6B6259`（对比度达标）、语义色 `success/warning/destructive` 各带 `*Soft` 浅底 |
-| `space` | 8pt 栅格：`xs 4 / sm 8 / md 12 / lg 16 / xl 20 / xxl 24 / xxxl 32` |
-| `type` | `display 28` / `title 21` / `heading 17` / `body 16` / `bodySm 14` / `caption 13` / `label 12` / `button 16`，每档含 `lineHeight` 与 `fontWeight` |
-| `radius` | `sm 10 / md 14 / lg 18 / xl 26 / pill 999` |
-| `shadow` | `card`（极淡，0/4）与 `raised`（主按钮与浮起元素，0/10） |
-| `hairline` | 统一 1px 描边宽度；**不再用 3px 粗边** |
+| `colors` | 纸白 `background #FBF9F6`、卡片 `card #FFFFFF`、近黑 `foreground #14140F`（主文字与主按钮底）、正文 `body #2A2A22`、唯一彩色 `accent #C08A45` 与其浅底 `accentSoft #F6EFE2`、纸线 `border #E4DFD5` 与 `divider #E9E4DA`、灰阶三档 `mutedForeground #7A766E` / `faintForeground #9A968E` / `ghostForeground #A8A49C`、语义色 `success/warning/destructive` 各带 `*Soft` 浅底 |
+| `space` | 8pt 栅格：`xxs 2 / xs 4 / sm 8 / md 12 / lg 16 / xl 20 / xxl 24 / xxxl 32 / huge 48` |
+| `type` | `display 33/40 w700` / `title 24/32 w700` / `heading 17/24 w700` / `body 15/24` / `bodySm 13.5/21` / `caption 12.5/19 w500` / `label 11/16 w700 字距 2` / `button 15/22 w700` |
+| `radius` | `xs 2`（方形标记）/ `sm 6` / `md 10` / `lg 14` / `xl 20` / `pill 999` |
+| `shadow` | `card` 全透明（保留键名，视觉上无阴影）；`raised` 只给首页那颗 172px 大圆按钮 |
+| `hairline` | 统一 1px |
 
-约定：可点元素 ≥44px 高且带按压反馈；不用 emoji 当图标，一律 `@expo/vector-icons`；Stack 已有标题的页面不再放 `PageHeader`（会重复）。
+组件约定（`src/components/ui.tsx`）：
+
+- `BrandBar` 顶栏 + `Eyebrow` 分组标题（大写 + 2px 字距）是这套视觉最容易被认出的细节。
+- `Card` 默认 `plain` = 无边框无阴影；`soft` 是浅灰填充；`outline` 才用 1px 纸线。
+- `Field` 是**下划线输入**（只有底边线，无边框无底色）。
+- `Badge` 是 1px 细边胶囊 + 透明底，不是色块。
+- **开关一律用 `Toggle`**，不要直接用 RN 的 `Switch`：react-native-web 的 `Switch` 开启态滑块只认 `activeThumbColor`（默认青色 `#009688`），`thumbColor` 只在关闭态生效，各页各写一遍必漏。
+- 可点元素 ≥44px 高且带按压反馈；不用 emoji 当图标，一律 `@expo/vector-icons`；Stack 已有标题的页面不再放 `PageHeader`（会重复）。
 
 ## 质量门
 

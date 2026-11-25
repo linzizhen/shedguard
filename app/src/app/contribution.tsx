@@ -1,11 +1,20 @@
 /**
  * 分享照片：用户自愿把手拍到的蜕皮照片贡献出来（默认关闭）。
  * 说明写成人话，技术细节（收件箱、令牌）不出现。
+ * 纸感极简（P34）：开关行用 1px 纸线分隔，缩略图列表去卡片框。
  */
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import {
+  Divider,
+  EmptyState,
+  Eyebrow,
+  Marker,
+  PrimaryButton,
+  Screen,
+  Toggle,
+} from '@/components/ui';
 import {
   useContributionSettings,
   useContributions,
@@ -35,14 +44,16 @@ function SampleRow({
   sample,
   onWithdraw,
   busy,
+  last,
 }: {
   sample: ContributionSample;
   onWithdraw: (id: string) => void;
   busy: boolean;
+  last: boolean;
 }) {
   const withdrawn = sample.upload_status === 'withdrawn';
   return (
-    <View style={styles.sampleRow}>
+    <View style={[styles.sampleRow, !last && styles.rowDivider]}>
       {withdrawn ? (
         <View style={[styles.thumb, styles.thumbGone]}>
           <Text style={styles.thumbGoneText}>已删</Text>
@@ -82,13 +93,7 @@ export default function ContributionScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="App 还没连上电脑"
-            subtitle="先回到「我的」，填好地址。"
-          />
-        </Card>
+        <EmptyState title="还没连上服务端" subtitle="先回到「我的」，填好地址。" />
       </Screen>
     );
   }
@@ -116,62 +121,58 @@ export default function ContributionScreen() {
         你愿意的话，设备拍到的蜕皮照片也能帮到别的守宫。默认是关着的，随时可以停。
       </Text>
 
+      <Divider />
+
       {setting === null ? (
-        <Card>
-          <EmptyState icon="hourglass-outline" title="正在读取…" />
-        </Card>
+        <Text style={styles.hint}>正在读取…</Text>
       ) : (
-        <Card style={{ gap: space.md }}>
+        <>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>允许分享</Text>
-            <Switch
+            <Toggle
               value={enabled}
               onValueChange={(next) =>
                 updateSettings.mutate({ enabled: next, include_full: includeFull })
               }
-              trackColor={{ true: colors.primary, false: colors.border }}
-              thumbColor={colors.card}
             />
           </View>
           <Text style={styles.hint}>
             只发裁剪后的特写，不带宠物名字、不带设备号，也不带原始文件信息。
           </Text>
 
-          <View style={styles.row}>
+          <View style={[styles.row, styles.rowTop]}>
             <Text style={[styles.rowLabel, !enabled && styles.rowDisabled]}>
               连整张原图一起发
             </Text>
-            <Switch
+            <Toggle
               value={includeFull}
               disabled={!enabled}
               onValueChange={(next) =>
                 updateSettings.mutate({ enabled: true, include_full: next })
               }
-              trackColor={{ true: colors.primary, false: colors.border }}
-              thumbColor={colors.card}
             />
           </View>
           <Text style={styles.hint}>
             不打开也没关系，只发特写就够我们用了。整张原图会多带上环境画面。
           </Text>
-        </Card>
+        </>
       )}
 
       {stats ? (
         <>
-          <SectionTitle>分享情况</SectionTitle>
-          <Card style={{ gap: space.sm }}>
-            <Text style={styles.stat}>
-              已经分享 {stats.uploaded} 张 · 还有 {stats.pending} 张等着发送
-            </Text>
-            {stats.failed > 0 ? (
-              <Text style={styles.hint}>{stats.failed} 张没发出去，我们会自己再试。</Text>
-            ) : null}
-            {stats.withdrawn > 0 ? (
-              <Text style={styles.hint}>已经撤回 {stats.withdrawn} 张。</Text>
-            ) : null}
-            <Text style={styles.hint}>一次蜕皮最多留 3 张，不会拍到停不下来。</Text>
-          </Card>
+          <Divider />
+
+          <Eyebrow>分享情况</Eyebrow>
+          <Text style={styles.stat}>
+            已经分享 {stats.uploaded} 张 · 还有 {stats.pending} 张等着发送
+          </Text>
+          {stats.failed > 0 ? (
+            <Text style={styles.hint}>{stats.failed} 张没发出去，我们会自己再试。</Text>
+          ) : null}
+          {stats.withdrawn > 0 ? (
+            <Text style={styles.hint}>已经撤回 {stats.withdrawn} 张。</Text>
+          ) : null}
+          <Text style={styles.hint}>一次蜕皮最多留 3 张，不会拍到停不下来。</Text>
 
           <PrimaryButton
             title={uploadNow.isPending ? '发送中…' : '立即发送'}
@@ -189,8 +190,7 @@ export default function ContributionScreen() {
             disabled={uploadNow.isPending || stats.pending === 0}
           />
 
-          <PrimaryButton
-            title={createExport.isPending ? '打包中…' : '打包成压缩包'}
+          <Pressable
             onPress={() =>
               createExport.mutate(undefined, {
                 onSuccess: (exported) =>
@@ -198,7 +198,13 @@ export default function ContributionScreen() {
               })
             }
             disabled={createExport.isPending || stats.total === 0}
-          />
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.exportButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.exportText}>
+              {createExport.isPending ? '打包中…' : '打包成压缩包'}
+            </Text>
+          </Pressable>
 
           {createExport.isError ? (
             <Text style={styles.errorText}>还没有可以打包的照片。</Text>
@@ -207,31 +213,34 @@ export default function ContributionScreen() {
         </>
       ) : null}
 
-      <SectionTitle>分享过的照片</SectionTitle>
+      <Divider />
+
+      <Eyebrow>分享过的照片</Eyebrow>
       {samples.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon="images-outline"
-            title="还没有分享过"
-            subtitle="打开上面的开关，之后拍到的蜕皮照片就会出现在这里。"
-          />
-        </Card>
+        <EmptyState
+          title="还没有分享过"
+          subtitle="打开上面的开关，之后拍到的蜕皮照片就会出现在这里。"
+        />
       ) : (
-        <Card style={{ gap: space.sm + 2 }}>
-          {samples.map((sample) => (
+        <View>
+          {samples.map((sample, index) => (
             <SampleRow
               key={sample.id}
               sample={sample}
               busy={withdraw.isPending}
               onWithdraw={confirmWithdraw}
+              last={index === samples.length - 1}
             />
           ))}
-        </Card>
+        </View>
       )}
 
-      <Text style={styles.hint}>
-        撤回会把这张从我们这边也删掉。关掉开关之后，新照片不会再上传。
-      </Text>
+      <View style={styles.note}>
+        <Marker />
+        <Text style={styles.noteText}>
+          撤回会把这张从我们这边也删掉。关掉开关之后，新照片不会再上传。
+        </Text>
+      </View>
     </Screen>
   );
 }
@@ -245,6 +254,11 @@ const styles = StyleSheet.create({
     gap: space.md,
     minHeight: 44,
   },
+  rowTop: { marginTop: space.md },
+  rowDivider: {
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.divider,
+  },
   rowLabel: { ...type.body, fontWeight: '700', color: colors.foreground },
   rowDisabled: { color: colors.faintForeground },
   stat: { ...type.body, fontWeight: '700', color: colors.foreground },
@@ -253,11 +267,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     minHeight: 56,
+    paddingVertical: space.sm,
   },
   thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
+    width: 52,
+    height: 52,
+    borderRadius: radius.sm,
     backgroundColor: colors.muted,
   },
   thumbGone: {
@@ -271,9 +286,9 @@ const styles = StyleSheet.create({
   sampleTitle: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
   sampleHint: { ...type.caption, color: colors.mutedForeground },
   withdraw: {
-    minHeight: 44,
+    minHeight: 36,
     minWidth: 56,
-    paddingHorizontal: space.sm,
+    paddingHorizontal: space.md,
     borderRadius: radius.pill,
     borderWidth: hairline,
     borderColor: colors.border,
@@ -281,8 +296,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   withdrawText: { ...type.caption, fontWeight: '700', color: colors.destructive },
-  pressed: { opacity: 0.6 },
+  pressed: { opacity: 0.62 },
+  exportButton: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    borderColor: colors.border,
+  },
+  exportText: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
   hint: { ...type.caption, color: colors.mutedForeground },
   notice: { ...type.bodySm, color: colors.accent },
   errorText: { ...type.bodySm, color: colors.destructive },
+  note: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+    marginTop: space.sm,
+  },
+  noteText: { ...type.caption, flex: 1, color: colors.faintForeground },
 });

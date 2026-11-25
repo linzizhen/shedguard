@@ -1,11 +1,12 @@
 /**
  * 接一个摄像头：填名字和地址，保存后立刻试一次能不能连上。
+ * 纸感极简（P34）：分段用 Eyebrow + 1px 纸线，输入用下划线，不再套卡片框。
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, Field, PrimaryButton, Screen } from '@/components/ui';
+import { Divider, Eyebrow, Field, PrimaryButton, Screen } from '@/components/ui';
 import { useCreateCamera, useTestCamera } from '@/hooks/useCameras';
 import type { CameraProvider } from '@/lib/types';
 import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
@@ -30,12 +31,17 @@ export default function CameraNewScreen() {
 
   const missing =
     label.trim() === '' ||
-    (provider === 'rtsp' ? url.trim() === '' : serial.trim() === '' || appKey.trim() === '' || appSecret.trim() === '');
+    (provider === 'rtsp'
+      ? url.trim() === ''
+      : serial.trim() === '' || appKey.trim() === '' || appSecret.trim() === '');
   const busy = create.isPending || test.isPending;
 
   const onSave = () => {
     if (missing) {
-      Alert.alert('还差一点', provider === 'rtsp' ? '名字和地址都要填。' : '名字、序列号和应用密钥都要填。');
+      Alert.alert(
+        '还差一点',
+        provider === 'rtsp' ? '名字和地址都要填。' : '名字、序列号和应用密钥都要填。',
+      );
       return;
     }
     const config: Record<string, string> =
@@ -79,101 +85,101 @@ export default function CameraNewScreen() {
   return (
     <Screen>
       <Text style={styles.subtitle}>
-        摄像头留在家里的箱子上方，电脑会定时来取一张图。我们不会控制它，只是看。
+        摄像头留在家里的箱子上方，服务端会定时来取一张图。我们不会控制它，只是看。
       </Text>
 
-      <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>用哪一种</Text>
-        <View style={styles.providerRow}>
-          {PROVIDERS.map((item) => {
-            const active = item.key === provider;
-            return (
-              <Pressable
-                key={item.key}
-                onPress={() => setProvider(item.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`选择${item.label}`}
-                style={({ pressed }) => [
-                  styles.provider,
-                  active && styles.providerActive,
-                  pressed && clayPress,
-                ]}
-              >
-                <Text style={[styles.providerLabel, active && styles.providerLabelActive]}>
-                  {item.label}
-                </Text>
-                <Text style={styles.providerHint}>{item.hint}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </Card>
+      <Divider />
 
-      <Card style={styles.card}>
-        <Field
-          label="给它起个名字"
-          value={label}
-          onChangeText={setLabel}
-          placeholder="比如：小橘子的箱子"
-          maxLength={64}
-        />
-        {provider === 'rtsp' ? (
-          <>
-            <Field
-              label="摄像头地址"
-              value={url}
-              onChangeText={setUrl}
-              placeholder="rtsp://192.168.1.9:554/stream"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Field
-              label="用户名（如果摄像头有）"
-              value={user}
-              onChangeText={setUser}
-              placeholder="admin"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Field
-              label="密码（如果摄像头有）"
-              value={credential}
-              onChangeText={setCredential}
-              placeholder="密码会加密保存"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </>
-        ) : (
-          <>
-            <Field
-              label="设备序列号"
-              value={serial}
-              onChangeText={setSerial}
-              placeholder="萤石 App 里能看到"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Field
-              label="应用 Key"
-              value={appKey}
-              onChangeText={setAppKey}
-              placeholder="开放平台里应用的 key"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Field
-              label="应用密钥"
-              value={appSecret}
-              onChangeText={setAppSecret}
-              placeholder="会加密保存"
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </>
-        )}
-      </Card>
+      <Eyebrow>用哪一种</Eyebrow>
+      <View style={styles.providerRow}>
+        {PROVIDERS.map((item) => {
+          const active = item.key === provider;
+          return (
+            <Pressable
+              key={item.key}
+              onPress={() => setProvider(item.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`选择${item.label}`}
+              style={({ pressed }) => [
+                styles.provider,
+                active && styles.providerActive,
+                pressed && clayPress,
+              ]}
+            >
+              <Text style={[styles.providerLabel, active && styles.providerLabelActive]}>
+                {item.label}
+              </Text>
+              <Text style={styles.providerHint}>{item.hint}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Field
+        label="给它起个名字"
+        value={label}
+        onChangeText={setLabel}
+        placeholder="比如：小橘子的箱子"
+        maxLength={64}
+      />
+      {provider === 'rtsp' ? (
+        <>
+          <Field
+            label="摄像头地址"
+            value={url}
+            onChangeText={setUrl}
+            placeholder="rtsp://192.168.1.9:554/stream"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Field
+            label="用户名（如果摄像头有）"
+            value={user}
+            onChangeText={setUser}
+            placeholder="admin"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Field
+            label="密码（如果摄像头有）"
+            value={credential}
+            onChangeText={setCredential}
+            placeholder="密码会加密保存"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+        </>
+      ) : (
+        <>
+          <Field
+            label="设备序列号"
+            value={serial}
+            onChangeText={setSerial}
+            placeholder="萤石 App 里能看到"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Field
+            label="应用 Key"
+            value={appKey}
+            onChangeText={setAppKey}
+            placeholder="开放平台里应用的 key"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Field
+            label="应用密钥"
+            value={appSecret}
+            onChangeText={setAppSecret}
+            placeholder="会加密保存"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+        </>
+      )}
+
+      <Divider />
 
       <PrimaryButton
         title={busy ? '正在试…' : '保存并试一下'}
@@ -192,30 +198,22 @@ const styles = StyleSheet.create({
     ...type.bodySm,
     color: colors.mutedForeground,
   },
-  card: {
-    gap: space.md,
-  },
-  sectionTitle: {
-    ...type.heading,
-    fontSize: 15,
-    color: colors.foreground,
-  },
   providerRow: {
     flexDirection: 'row',
     gap: space.sm,
   },
   provider: {
     flex: 1,
-    gap: 2,
-    padding: space.md,
-    borderRadius: radius.md,
+    gap: 3,
+    paddingVertical: space.md,
+    paddingHorizontal: space.md,
+    borderRadius: radius.lg,
     borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   providerActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
+    borderColor: colors.foreground,
+    backgroundColor: colors.muted,
   },
   providerLabel: {
     ...type.bodySm,
@@ -223,7 +221,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   providerLabelActive: {
-    color: colors.primaryDark,
+    color: colors.foreground,
   },
   providerHint: {
     ...type.caption,
@@ -232,6 +230,6 @@ const styles = StyleSheet.create({
   },
   note: {
     ...type.caption,
-    color: colors.mutedForeground,
+    color: colors.faintForeground,
   },
 });

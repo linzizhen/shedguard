@@ -2,13 +2,13 @@
  * 一张萌照的详情页：看大图、说「好看」或「不太满意」。
  *
  * V1 不做手动框头（需要拖拽交互），只把反馈记下来，供后续训练偏好模型用。
+ * 纸感极简（P34）：照片直接铺开，反馈用 Marker + 一行小字。
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { Card, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
+import { Divider, Marker, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
 import { usePortraitFeedback } from '@/hooks/usePortraits';
 import { ensureToken, portraitUrl } from '@/lib/auth';
 import { formatDateCn } from '@/lib/dates';
@@ -30,10 +30,7 @@ export default function PortraitScreen() {
 
   function send(kind: 'like' | 'skip') {
     if (!shotId) return;
-    feedback.mutate(
-      { shotId, input: { kind } },
-      { onSuccess: () => setSaid(kind) },
-    );
+    feedback.mutate({ shotId, input: { kind } }, { onSuccess: () => setSaid(kind) });
   }
 
   return (
@@ -42,32 +39,28 @@ export default function PortraitScreen() {
         {params.local_date ? `${formatDateCn(params.local_date)} · 它今天的样子` : '它今天的样子'}
       </Text>
 
-      <Card style={styles.imageCard}>
-        {tokenReady && shotId ? (
-          <Image source={{ uri: portraitUrl(shotId) }} style={styles.image} resizeMode="contain" />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.placeholderText}>照片加载中…</Text>
-          </View>
-        )}
-      </Card>
+      <Divider />
+
+      {tokenReady && shotId ? (
+        <Image source={{ uri: portraitUrl(shotId) }} style={styles.image} resizeMode="contain" />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Text style={styles.placeholderText}>照片加载中…</Text>
+        </View>
+      )}
 
       {said === 'like' ? (
-        <Card style={styles.tipCard}>
-          <View style={styles.tipRow}>
-            <Ionicons name="heart" size={20} color={colors.primary} />
-            <Text style={styles.tipText}>记下了。之后会多挑这样的角度。</Text>
-          </View>
-        </Card>
+        <View style={styles.tipRow}>
+          <Marker tone="success" />
+          <Text style={styles.tipText}>记下了。之后会多挑这样的角度。</Text>
+        </View>
       ) : null}
 
       {said === 'skip' ? (
-        <Card style={styles.tipCard}>
-          <View style={styles.tipRow}>
-            <Ionicons name="refresh" size={20} color={colors.mutedForeground} />
-            <Text style={styles.tipText}>记下了。下次会尽量换一张更好的。</Text>
-          </View>
-        </Card>
+        <View style={styles.tipRow}>
+          <Marker />
+          <Text style={styles.tipText}>记下了。下次会尽量换一张更好的。</Text>
+        </View>
       ) : null}
 
       {said === null ? (
@@ -99,19 +92,16 @@ const styles = StyleSheet.create({
     ...type.bodySm,
     color: colors.mutedForeground,
   },
-  imageCard: {
-    padding: space.sm,
-  },
   image: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.muted,
   },
   imagePlaceholder: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.muted,
     alignItems: 'center',
     justifyContent: 'center',
@@ -119,9 +109,6 @@ const styles = StyleSheet.create({
   placeholderText: {
     ...type.bodySm,
     color: colors.mutedForeground,
-  },
-  tipCard: {
-    paddingVertical: space.md,
   },
   tipRow: {
     flexDirection: 'row',
@@ -135,6 +122,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     ...type.caption,
-    color: colors.mutedForeground,
+    color: colors.faintForeground,
   },
 });

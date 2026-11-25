@@ -1,11 +1,20 @@
 /**
  * 萌照设置：要不要每天拍、一天几张、几点到几点拍。
+ * 纸感极简（P34）：开关与步进器都用 1px 纸线分隔，去掉卡片框。
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import {
+  Divider,
+  EmptyState,
+  Eyebrow,
+  Marker,
+  PrimaryButton,
+  Screen,
+  Toggle,
+} from '@/components/ui';
 import { usePets } from '@/hooks/usePets';
 import { usePortraitSettings, useUpdatePortraitSettings } from '@/hooks/usePortraits';
 import { useServerUrl } from '@/lib/serverUrl';
@@ -83,13 +92,7 @@ export default function PortraitSettingsScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="App 还没连上电脑"
-            subtitle="先回到「我的」，填好地址。"
-          />
-        </Card>
+        <EmptyState title="还没连上服务端" subtitle="先回到「我的」，填好地址。" />
       </Screen>
     );
   }
@@ -97,14 +100,8 @@ export default function PortraitSettingsScreen() {
   if (!petId) {
     return (
       <Screen>
-        <Card style={{ gap: space.md }}>
-          <EmptyState
-            icon="paw-outline"
-            title="还没有你的守宫"
-            subtitle="先建个档案再来设置"
-          />
-          <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
-        </Card>
+        <EmptyState title="还没有你的守宫" subtitle="先建个档案再来设置" />
+        <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
       </Screen>
     );
   }
@@ -112,9 +109,7 @@ export default function PortraitSettingsScreen() {
   if (!current) {
     return (
       <Screen>
-        <Card>
-          <EmptyState icon="hourglass-outline" title="正在读取…" />
-        </Card>
+        <Text style={styles.hint}>正在读取…</Text>
       </Screen>
     );
   }
@@ -139,17 +134,14 @@ export default function PortraitSettingsScreen() {
     <Screen>
       <Text style={styles.subtitle}>设备会在这段时间里挑一张最好看的留下来</Text>
 
-      <Card style={{ gap: space.md }}>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>每天拍萌照</Text>
-          <Switch
-            value={current.enabled}
-            onValueChange={(next) => patch({ enabled: next })}
-            trackColor={{ true: colors.primary, false: colors.border }}
-            thumbColor={colors.card}
-          />
-        </View>
+      <Divider />
 
+      <View style={styles.row}>
+        <Text style={styles.rowLabel}>每天拍萌照</Text>
+        <Toggle value={current.enabled} onValueChange={(next) => patch({ enabled: next })} />
+      </View>
+
+      <View style={styles.rowDivider}>
         <Stepper
           label="一天几张"
           value={current.per_day}
@@ -158,10 +150,11 @@ export default function PortraitSettingsScreen() {
           max={6}
           onChange={(next) => patch({ per_day: next })}
         />
-      </Card>
+      </View>
 
-      <SectionTitle>拍摄时间</SectionTitle>
-      <Card style={{ gap: space.md }}>
+      <Eyebrow>拍摄时间</Eyebrow>
+
+      <View style={styles.rowDivider}>
         <Stepper
           label="开始"
           value={current.start_hour}
@@ -170,22 +163,25 @@ export default function PortraitSettingsScreen() {
           max={23}
           onChange={(next) => patch({ start_hour: next })}
         />
-        <Stepper
-          label="结束"
-          value={current.end_hour}
-          display={`${current.end_hour}:00`}
-          min={1}
-          max={24}
-          onChange={(next) => patch({ end_hour: next })}
-        />
-        {windowInvalid ? (
-          <Text style={styles.errorText}>结束时间要晚于开始时间。</Text>
-        ) : (
-          <Text style={styles.hint}>
-            这段时间一共 {span} 小时，设备会自己分配拍摄时刻，晚上不拍。
-          </Text>
-        )}
-      </Card>
+      </View>
+      <Stepper
+        label="结束"
+        value={current.end_hour}
+        display={`${current.end_hour}:00`}
+        min={1}
+        max={24}
+        onChange={(next) => patch({ end_hour: next })}
+      />
+
+      {windowInvalid ? (
+        <Text style={styles.errorText}>结束时间要晚于开始时间。</Text>
+      ) : (
+        <Text style={styles.hint}>
+          这段时间一共 {span} 小时，设备会自己分配拍摄时刻，晚上不拍。
+        </Text>
+      )}
+
+      <Divider />
 
       <PrimaryButton
         title={dirty ? '保存设置' : '已保存'}
@@ -202,9 +198,12 @@ export default function PortraitSettingsScreen() {
         <Text style={styles.errorText}>没存上。检查一下网络，再点一次保存。</Text>
       ) : null}
 
-      <Text style={styles.hint}>
-        照片只存在你自己的电脑上，不会发给别人。想删掉旧照片，可以在后端打开「照片保留」设置。
-      </Text>
+      <View style={styles.note}>
+        <Marker />
+        <Text style={styles.noteText}>
+          照片只存在你自己的电脑上，不会发给别人。想删掉旧照片，可以在后端打开「照片保留」设置。
+        </Text>
+      </View>
     </Screen>
   );
 }
@@ -216,32 +215,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.md,
-    minHeight: 44,
+    minHeight: 48,
   },
-  rowLabel: { ...type.body, fontWeight: '700', color: colors.foreground },
+  rowDivider: {
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.divider,
+  },
+  rowLabel: { ...type.body, fontWeight: '600', color: colors.foreground },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
   },
   stepButton: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
     borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepDisabled: { opacity: 0.4 },
-  stepText: { fontSize: 22, fontWeight: '800', color: colors.primaryDark },
+  stepDisabled: { opacity: 0.35 },
+  stepText: { fontSize: 20, fontWeight: '600', color: colors.foreground },
   stepValue: {
     minWidth: 64,
     textAlign: 'center',
-    ...type.heading,
+    ...type.body,
+    fontWeight: '700',
     color: colors.foreground,
   },
   hint: { ...type.caption, color: colors.mutedForeground },
   errorText: { ...type.bodySm, color: colors.destructive },
+  note: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+  },
+  noteText: { ...type.caption, flex: 1, color: colors.faintForeground },
 });

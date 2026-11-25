@@ -1,6 +1,8 @@
 /**
- * 首页 = 拍照查验。只有一个动作：拍一张。
- * 不选宠物（只有一只时）、不显示置信度；结论用一句人话。
+ * 首页 = 拍照查验。纸感极简（P34）。
+ *
+ * 只有一个主动作：拍一张。不选宠物（只有一只时）、不显示置信度；结论用一句人话。
+ * 视觉：纸底 + 近黑实心圆快门 + 1px 纸线分层，不用卡片边框与阴影。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation } from '@tanstack/react-query';
@@ -10,18 +12,22 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   Badge,
-  Card,
+  BrandBar,
+  Divider,
   EmptyState,
+  IconButton,
+  Marker,
   PageHeader,
   PrimaryButton,
   Screen,
-  SecondaryButton,
+  TextLink,
 } from '@/components/ui';
+import { useAlerts } from '@/hooks/useAlerts';
 import { usePets } from '@/hooks/usePets';
 import { usePortraitToday } from '@/hooks/usePortraits';
 import { checkPhoto, pickCheckPhoto, takeCheckPhoto } from '@/hooks/useShed';
 import { portraitUrl } from '@/lib/auth';
-import { resultCopy } from '@/lib/resultCopy';
+import { alertTitle, resultCopy } from '@/lib/resultCopy';
 import { useServerUrl } from '@/lib/serverUrl';
 import { clayPress, colors, hairline, radius, shadow, space, type } from '@/lib/theme';
 import type { CheckPhotoResult, Pet, ShedState } from '@/lib/types';
@@ -48,6 +54,22 @@ const TONE_LABEL: Record<string, string> = {
   unclear: '没看清',
 };
 
+/** 把 ISO 时间转成「今天 08:24 / 11月18日 08:24」 */
+function shortMoment(iso: string | null): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  const hh = `${date.getHours()}`.padStart(2, '0');
+  const mm = `${date.getMinutes()}`.padStart(2, '0');
+  if (sameDay) return `今天 ${hh}:${mm}`;
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${hh}:${mm}`;
+}
+
 export default function HomeScreen() {
   const serverUrl = useServerUrl();
   const petsQuery = usePets();
@@ -70,7 +92,7 @@ export default function HomeScreen() {
       } else if (message.includes('格式') || message.includes('UNSUPPORTED_MEDIA_TYPE')) {
         setErrorText('这个格式看不了。换成 JPG 或 PNG 再试一次。');
       } else if (message.includes('无法连接') || message.includes('网络')) {
-        setErrorText('连不上电脑上的程序。确认手机和电脑在同一个 Wi-Fi，地址也没填错。');
+        setErrorText('连不上服务端。确认地址没填错，网络是通的。');
       } else {
         setErrorText('这张没传上去。再试一次，或者换一张。');
       }
@@ -86,6 +108,9 @@ export default function HomeScreen() {
   const portraitQuery = usePortraitToday(activePetId);
   const todayShot = portraitQuery.data?.items[0] ?? null;
 
+  const alertsQuery = useAlerts({ petId: activePetId });
+  const latestAlert = alertsQuery.data?.items.find((a) => a.read_at_utc === null) ?? null;
+
   async function shoot(source: 'camera' | 'library') {
     if (!activePetId) return;
     const uri = source === 'camera' ? await takeCheckPhoto() : await pickCheckPhoto();
@@ -96,14 +121,12 @@ export default function HomeScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
+        <BrandBar />
         <PageHeader title="拍照" subtitle="拍一张它身上发白的地方" />
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="App 还没连上电脑"
-            subtitle="在「我的 → 高级设置」里填入电脑地址，或者重新打开首次引导。"
-          />
-        </Card>
+        <EmptyState
+          title="还没连上服务端"
+          subtitle="在「我的 → 高级设置」里填入地址，或者重新打开首次引导。"
+        />
         <PrimaryButton title="去填地址" onPress={() => router.replace('/welcome')} />
       </Screen>
     );
@@ -112,10 +135,9 @@ export default function HomeScreen() {
   if (petsQuery.isLoading) {
     return (
       <Screen>
+        <BrandBar />
         <PageHeader title="拍照" subtitle="拍一张它身上发白的地方" />
-        <Card>
-          <EmptyState icon="hourglass-outline" title="准备中…" />
-        </Card>
+        <EmptyState title="准备中…" />
       </Screen>
     );
   }
@@ -123,15 +145,10 @@ export default function HomeScreen() {
   if (pets.length === 0) {
     return (
       <Screen>
+        <BrandBar />
         <PageHeader title="拍照" subtitle="拍一张它身上发白的地方" />
-        <Card style={{ gap: space.md }}>
-          <EmptyState
-            icon="paw-outline"
-            title="还没有你的守宫"
-            subtitle="先花 10 秒建个档案，就能开始拍了"
-          />
-          <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
-        </Card>
+        <EmptyState title="还没有你的守宫" subtitle="先花 10 秒建个档案，就能开始拍了" />
+        <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
       </Screen>
     );
   }
@@ -141,9 +158,28 @@ export default function HomeScreen() {
 
   return (
     <Screen>
+      <BrandBar
+        right={
+          <Pressable
+            onPress={() => router.push('/settings')}
+            accessibilityRole="button"
+            accessibilityLabel="打开我的"
+            hitSlop={8}
+          >
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={15} color={colors.mutedForeground} />
+            </View>
+          </Pressable>
+        }
+      />
+
       <PageHeader
-        title="拍照"
-        subtitle={activePet ? `正在给 ${activePet.name} 看皮肤` : '拍一张它身上发白的地方'}
+        title="今天看一眼"
+        subtitle={
+          activePet
+            ? `${activePet.name}的皮肤有没有发白，拍一张就知道。`
+            : '它的皮肤有没有发白，拍一张就知道。'
+        }
       />
 
       {pets.length > 1 ? (
@@ -165,65 +201,51 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {todayShot ? (
-        <Pressable
-          onPress={() =>
-            router.push({ pathname: '/portrait/[id]', params: { id: todayShot.id } })
-          }
-          accessibilityRole="button"
-          accessibilityLabel="查看今天的萌照"
-          style={({ pressed }) => [pressed && clayPress]}
-        >
-          <Card style={styles.portraitCard}>
-            <Image source={{ uri: portraitUrl(todayShot.id) }} style={styles.portraitThumb} />
-            <View style={styles.portraitText}>
-              <Text style={styles.portraitTitle}>今天的萌照</Text>
-              <Text style={styles.portraitHint}>点开看看，不满意可以换一张</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.faintForeground} />
-          </Card>
-        </Pressable>
-      ) : null}
-
       <View style={styles.shutterWrap}>
         <Pressable
           onPress={() => void shoot('camera')}
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="拍一张照片"
-          style={({ pressed }) => [styles.shutterRing, busy && styles.busy, pressed && clayPress]}
+          style={({ pressed }) => [styles.shutter, busy && styles.busy, pressed && clayPress]}
         >
-          <View style={styles.shutter}>
-            <Ionicons name="camera" size={40} color="#FFFFFF" />
-            <Text style={styles.shutterText}>{busy ? '正在看…' : '拍张照'}</Text>
-          </View>
+          <Ionicons name="camera-outline" size={32} color={colors.onPrimary} />
+          <Text style={styles.shutterText}>{busy ? '正在看…' : '拍照'}</Text>
         </Pressable>
         <Text style={styles.shutterHint}>
-          {busy ? '正在看照片…（大约 3 秒）' : '把手机对准它，尽量靠近、光线亮一点'}
+          {busy ? '正在看照片…（大约 3 秒）' : '对准它，靠近一点\n光线亮的时候更准'}
         </Text>
       </View>
 
-      <SecondaryButton title="从相册选一张" onPress={() => void shoot('library')} disabled={busy} />
+      <View style={styles.actionRow}>
+        <IconButton icon="image-outline" title="从相册选" onPress={() => void shoot('library')} />
+        <IconButton icon="videocam-outline" title="接摄像头" onPress={() => router.push('/cameras')} />
+      </View>
 
       {errorText ? (
-        <Card tone="soft" style={styles.errorCard}>
-          <Ionicons name="alert-circle" size={20} color={colors.destructive} />
+        <View style={styles.errorBox}>
+          <Marker tone="danger" />
           <Text style={styles.errorText}>{errorText}</Text>
-        </Card>
+        </View>
       ) : null}
 
       {lastResult && copy ? (
-        <Card style={styles.resultCard}>
+        <View style={styles.resultBlock}>
+          <Divider />
           <View style={styles.resultTop}>
-            <Badge label={TONE_LABEL[copy.tone] ?? '结果'} tone={TONE_BADGE[copy.tone] ?? 'neutral'} />
-            <Text style={styles.resultDate}>{lastResult.state === 'unknown' ? '再看看' : '刚刚'}</Text>
+            <Text style={styles.eyebrow}>这一次</Text>
+            <Badge
+              label={TONE_LABEL[copy.tone] ?? '结果'}
+              tone={TONE_BADGE[copy.tone] ?? 'neutral'}
+            />
           </View>
-
           <Text style={styles.headline}>{copy.headline}</Text>
           <Text style={styles.advice}>{copy.advice}</Text>
 
-          <PrimaryButton title="再拍一张" onPress={() => void shoot('camera')} disabled={busy} />
-          <SecondaryButton title="记到蜕皮记录" onPress={() => router.push('/log')} />
+          <View style={styles.resultActions}>
+            <PrimaryButton title="再拍一张" onPress={() => void shoot('camera')} disabled={busy} />
+            <IconButton icon="bookmark-outline" title="记到记录" onPress={() => router.push('/log')} />
+          </View>
 
           <Pressable
             onPress={() => setShowDetail((v) => !v)}
@@ -235,8 +257,8 @@ export default function HomeScreen() {
             </Text>
             <Ionicons
               name={showDetail ? 'chevron-up' : 'chevron-down'}
-              size={14}
-              color={colors.mutedForeground}
+              size={13}
+              color={colors.faintForeground}
             />
           </Pressable>
 
@@ -260,36 +282,62 @@ export default function HomeScreen() {
               <Text style={styles.detailNote}>这些数字仅供了解，不影响上面那句结论。</Text>
             </View>
           ) : null}
-        </Card>
+        </View>
       ) : null}
+
+      {todayShot ? (
+        <Pressable
+          onPress={() => router.push({ pathname: '/portrait/[id]', params: { id: todayShot.id } })}
+          accessibilityRole="button"
+          accessibilityLabel="查看今天的萌照"
+          style={({ pressed }) => [styles.portraitRow, pressed && clayPress]}
+        >
+          <Image source={{ uri: portraitUrl(todayShot.id) }} style={styles.portraitThumb} />
+          <View style={styles.portraitText}>
+            <Text style={styles.portraitTitle}>今天的萌照</Text>
+            <Text style={styles.portraitHint}>点开看看，不满意可以换一张</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={17} color={colors.ghostForeground} />
+        </Pressable>
+      ) : null}
+
+      <Divider />
+
+      <View style={styles.sectionHead}>
+        <Text style={styles.eyebrow}>上一次</Text>
+        <TextLink title="全部记录" onPress={() => router.push('/log')} />
+      </View>
+
+      {latestAlert ? (
+        <View style={styles.lastBlock}>
+          <View style={styles.lastTitleRow}>
+            <Marker />
+            <Text style={styles.lastTitle}>{alertTitle(latestAlert.kind, activePet?.name ?? null)}</Text>
+          </View>
+          <Text style={styles.lastBody}>
+            {latestAlert.kind === 'shedding_detected'
+              ? '记得把水盆加满，保持湿润。别去帮它撕。'
+              : '点开看看具体情况。'}
+          </Text>
+          <Text style={styles.lastTime}>{shortMoment(latestAlert.created_at_utc)}</Text>
+        </View>
+      ) : (
+        <Text style={styles.lastEmpty}>
+          还没有提醒。拍一张，或者接上摄像头让它自己盯着。
+        </Text>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  portraitCard: {
-    flexDirection: 'row',
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
-    gap: space.md,
-    padding: space.md,
-  },
-  portraitThumb: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.md,
-    backgroundColor: colors.muted,
-  },
-  portraitText: {
-    flex: 1,
-    gap: 2,
-  },
-  portraitTitle: {
-    ...type.heading,
-    color: colors.foreground,
-  },
-  portraitHint: {
-    ...type.caption,
-    color: colors.mutedForeground,
+    justifyContent: 'center',
   },
   chips: {
     flexDirection: 'row',
@@ -298,12 +346,11 @@ const styles = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: space.lg,
-    minHeight: 40,
+    minHeight: 38,
     justifyContent: 'center',
     borderRadius: radius.pill,
     borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   chipActive: {
     backgroundColor: colors.foreground,
@@ -315,70 +362,67 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   chipTextActive: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
   },
   shutterWrap: {
     alignItems: 'center',
-    gap: space.md,
-    paddingVertical: space.lg,
-  },
-  shutterRing: {
-    width: 196,
-    height: 196,
-    borderRadius: radius.pill,
-    borderWidth: hairline,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
+    gap: space.lg,
+    paddingTop: space.xxl,
+    paddingBottom: space.sm,
   },
   shutter: {
-    width: 168,
-    height: 168,
+    width: 172,
+    height: 172,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.foreground,
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.sm,
     ...shadow.raised,
   },
   busy: {
-    opacity: 0.75,
+    opacity: 0.7,
   },
   shutterText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    color: colors.onPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 1.6,
   },
   shutterHint: {
     ...type.caption,
-    color: colors.mutedForeground,
+    color: colors.faintForeground,
     textAlign: 'center',
-    paddingHorizontal: space.xxl,
+    lineHeight: 20,
   },
-  errorCard: {
+  actionRow: {
+    flexDirection: 'row',
+    gap: space.sm,
+  },
+  errorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space.md,
     backgroundColor: colors.destructiveSoft,
-    borderColor: colors.destructiveSoft,
+    borderRadius: radius.lg,
+    padding: space.lg,
   },
   errorText: {
     ...type.bodySm,
     flex: 1,
     color: colors.destructive,
   },
-  resultCard: {
+  resultBlock: {
     gap: space.md,
+    paddingTop: space.xs,
   },
   resultTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  resultDate: {
-    ...type.caption,
+  eyebrow: {
+    ...type.label,
     color: colors.faintForeground,
   },
   headline: {
@@ -389,17 +433,22 @@ const styles = StyleSheet.create({
     ...type.body,
     color: colors.body,
   },
+  resultActions: {
+    flexDirection: 'row',
+    gap: space.sm,
+    alignItems: 'stretch',
+  },
   detailToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
     paddingVertical: space.sm,
-    minHeight: 40,
+    minHeight: 36,
   },
   detailToggleText: {
     ...type.caption,
-    fontWeight: '700',
-    color: colors.mutedForeground,
+    fontWeight: '600',
+    color: colors.faintForeground,
   },
   detailBox: {
     backgroundColor: colors.muted,
@@ -413,8 +462,66 @@ const styles = StyleSheet.create({
   },
   detailNote: {
     ...type.caption,
-    fontSize: 12,
+    fontSize: 11.5,
     color: colors.faintForeground,
     marginTop: space.xs,
+  },
+  portraitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.md,
+  },
+  portraitThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.sm,
+    backgroundColor: colors.muted,
+  },
+  portraitText: {
+    flex: 1,
+    gap: 2,
+  },
+  portraitTitle: {
+    ...type.heading,
+    fontSize: 15,
+    color: colors.foreground,
+  },
+  portraitHint: {
+    ...type.caption,
+    color: colors.mutedForeground,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  lastBlock: {
+    gap: space.xs,
+    paddingBottom: space.lg,
+  },
+  lastTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  lastTitle: {
+    ...type.heading,
+    color: colors.foreground,
+  },
+  lastBody: {
+    ...type.bodySm,
+    color: colors.mutedForeground,
+  },
+  lastTime: {
+    ...type.caption,
+    fontSize: 11.5,
+    color: colors.ghostForeground,
+    letterSpacing: 0.3,
+  },
+  lastEmpty: {
+    ...type.bodySm,
+    color: colors.faintForeground,
+    paddingBottom: space.lg,
   },
 });

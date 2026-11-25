@@ -1,6 +1,6 @@
 /**
  * 底部三个 Tab：拍照 / 蜕皮记录 / 我的。
- * 只有三格，窄屏也不会被裁；技术设置全部收进「我的」里。
+ * 纸感极简（P34）：纸底 + 顶部 1px 纸线，选中态用近黑而不是彩色。
  */
 import type { PropsWithChildren } from 'react';
 
@@ -23,24 +23,25 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primaryDark,
-        tabBarInactiveTintColor: colors.faintForeground,
+        tabBarActiveTintColor: colors.foreground,
+        tabBarInactiveTintColor: colors.ghostForeground,
         tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
+          backgroundColor: colors.background,
+          borderTopColor: colors.divider,
           borderTopWidth: hairline,
-          height: 64,
-          paddingTop: 6,
-          paddingBottom: 8,
+          height: 62,
+          paddingTop: 7,
+          paddingBottom: 7,
           paddingHorizontal: 0,
+          elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10.5,
           fontWeight: '600',
-          letterSpacing: 0.2,
+          letterSpacing: 0.4,
         },
         tabBarIconStyle: {
-          marginBottom: -2,
+          marginBottom: -1,
         },
         tabBarItemStyle: {
           flex: 1,
@@ -54,16 +55,16 @@ export default function TabsLayout() {
         options={{
           title: '拍照',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'camera' : 'camera-outline'} color={color} size={23} />
+            <TabIcon name={focused ? 'camera' : 'camera-outline'} color={color} size={22} />
           ),
         }}
       />
       <Tabs.Screen
         name="log"
         options={{
-          title: '蜕皮记录',
+          title: '记录',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'calendar' : 'calendar-outline'} color={color} size={22} />
+            <TabIcon name={focused ? 'calendar' : 'calendar-outline'} color={color} size={21} />
           ),
         }}
       />
@@ -72,7 +73,7 @@ export default function TabsLayout() {
         options={{
           title: '我的',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={22} />
+            <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={21} />
           ),
         }}
       />
