@@ -1,11 +1,12 @@
 /**
  * 宠物表单：新建/编辑两屏复用。
  * 校验规则与后端一致：name 必填非空 ≤64 字符；birth_date 可选 YYYY-MM-DD。
+ * 纸感极简（P34）：去卡片框，靠 1px 纸线与留白分组。
  */
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Card, Field, PrimaryButton, SecondaryButton, SectionTitle } from '@/components/ui';
+import { Divider, Eyebrow, Field, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { colors, space, type } from '@/lib/theme';
 
 /** 表单值：三个可选字段用空串表示「未填写」 */
@@ -77,8 +78,8 @@ export function PetForm({
   }
 
   return (
-    <Card style={styles.gapColumn}>
-      <SectionTitle>基本信息</SectionTitle>
+    <View style={styles.gapColumn}>
+      <Eyebrow>基本信息</Eyebrow>
       <Field
         label="名字（必填）"
         value={value.name}
@@ -106,21 +107,17 @@ export function PetForm({
         keyboardType="numbers-and-punctuation"
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.row}>
-        <PrimaryButton title={submitTitle} onPress={handleSubmit} loading={submitting} />
-      </View>
-      <View style={styles.row}>
-        <SecondaryButton title="取消" onPress={onCancel} />
-      </View>
-    </Card>
+
+      <Divider />
+
+      <PrimaryButton title={submitTitle} onPress={handleSubmit} loading={submitting} />
+      <SecondaryButton title="取消" onPress={onCancel} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   gapColumn: {
-    gap: space.md,
-  },
-  row: {
     gap: space.md,
   },
   error: {

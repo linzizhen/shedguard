@@ -1,15 +1,16 @@
 /**
  * 蜕皮知识列表（从「我的」进入，不再是独立 Tab）。
  * 后端：GET /api/v1/knowledge/topics。
+ * 纸感极简（P34）：条目按 1px 纸线分隔，序号用琥珀小字，不用卡片与图标底座。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, Screen } from '@/components/ui';
+import { Divider, EmptyState, Screen } from '@/components/ui';
 import { useKnowledgeTopics } from '@/hooks/useKnowledge';
 import { useServerUrl } from '@/lib/serverUrl';
-import { clayPress, colors, hairline, radius, shadow, space, type } from '@/lib/theme';
+import { clayPress, colors, hairline, space, type } from '@/lib/theme';
 
 export default function KnowledgeScreen() {
   const serverUrl = useServerUrl();
@@ -18,13 +19,10 @@ export default function KnowledgeScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="App 还没连上电脑"
-            subtitle="在「我的 → 高级设置」里填入电脑地址。"
-          />
-        </Card>
+        <EmptyState
+          title="还没连上服务端"
+          subtitle="在「我的 → 高级设置」里填入地址。"
+        />
       </Screen>
     );
   }
@@ -32,9 +30,7 @@ export default function KnowledgeScreen() {
   if (topicsQuery.isLoading) {
     return (
       <Screen>
-        <Card>
-          <EmptyState icon="hourglass-outline" title="加载中…" />
-        </Card>
+        <Text style={styles.intro}>加载中…</Text>
       </Screen>
     );
   }
@@ -42,13 +38,7 @@ export default function KnowledgeScreen() {
   if (topicsQuery.isError) {
     return (
       <Screen>
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="加载不出来"
-            subtitle="检查一下网络，稍后再试。"
-          />
-        </Card>
+        <EmptyState title="加载不出来" subtitle="检查一下网络，稍后再试。" />
       </Screen>
     );
   }
@@ -58,24 +48,27 @@ export default function KnowledgeScreen() {
   return (
     <Screen>
       <Text style={styles.intro}>它为什么发白、要不要帮它撕、卡皮了怎么办。</Text>
-      <View style={styles.list}>
+      <Divider />
+      <View>
         {topics.map((topic, index) => (
           <Pressable
             key={topic.slug}
             onPress={() => router.push(`/topic/${topic.slug}`)}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.topicCard, pressed && clayPress]}
+            style={({ pressed }) => [
+              styles.topicRow,
+              index < topics.length - 1 && styles.rowDivider,
+              pressed && clayPress,
+            ]}
           >
-            <View style={styles.indexBadge}>
-              <Text style={styles.indexText}>{index + 1}</Text>
-            </View>
+            <Text style={styles.index}>{`0${index + 1}`}</Text>
             <View style={styles.topicBody}>
               <Text style={styles.topicTitle}>{topic.title}</Text>
               <Text style={styles.topicSummary} numberOfLines={2}>
                 {topic.summary}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={17} color={colors.faintForeground} />
+            <Ionicons name="chevron-forward" size={16} color={colors.ghostForeground} />
           </Pressable>
         ))}
       </View>
@@ -88,37 +81,27 @@ const styles = StyleSheet.create({
     ...type.bodySm,
     color: colors.mutedForeground,
   },
-  list: {
-    gap: space.md,
-  },
-  topicCard: {
+  topicRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: hairline,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: space.lg,
+    paddingVertical: space.lg,
     gap: space.md,
     minHeight: 64,
-    ...shadow.card,
   },
-  indexBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+  rowDivider: {
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.divider,
   },
-  indexText: {
+  index: {
     ...type.caption,
-    fontWeight: '800',
-    color: colors.primaryDark,
+    fontWeight: '700',
+    color: colors.accent,
+    letterSpacing: 1,
+    width: 24,
   },
   topicBody: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   topicTitle: {
     ...type.heading,

@@ -1,12 +1,14 @@
 /**
  * 蜕皮提醒详情：显示触发提醒的原图与关键信息，打开时自动标记已读。
  * 路由参数由日志屏的 AlertBanner 传入（避免额外按 id 查询接口）。
+ * 纸感极简（P34）：照片直接铺开，信息用 1px 纸线分隔的键值行。
+ * 按 P21 文案规则，不向用户显示置信度百分比。
  */
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { Card, Screen } from '@/components/ui';
+import { Divider, Eyebrow, Screen } from '@/components/ui';
 import { useMarkAlertRead } from '@/hooks/useAlerts';
 import { ensureToken, imageUrl } from '@/lib/auth';
 import { formatDateCn } from '@/lib/dates';
@@ -52,7 +54,6 @@ export default function AlertDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  const confidence = params.confidence ? Number(params.confidence) : null;
   const isShedding = !params.kind || params.kind === 'shedding_detected';
   const kindMeta = KIND_LABEL[params.kind ?? 'shedding_detected'];
   const label = isShedding
@@ -65,74 +66,86 @@ export default function AlertDetailScreen() {
     <Screen>
       <Text style={styles.kindTitle}>{kindMeta?.title ?? label}</Text>
       {kindMeta?.subtitle ? <Text style={styles.kindSubtitle}>{kindMeta.subtitle}</Text> : null}
-      <Card style={styles.imageCard}>
-        {params.image_id && tokenReady ? (
-          <Image
-            source={{ uri: imageUrl(params.image_id) }}
-            style={styles.image}
-            resizeMode="contain"
-          />
-        ) : (
+
+      <Divider />
+
+      {params.image_id && tokenReady ? (
+        <Image
+          source={{ uri: imageUrl(params.image_id) }}
+          style={styles.image}
+          resizeMode="contain"
+        />
+      ) : (
+        <View style={styles.imageMissing}>
           <Text style={styles.missing}>
             {params.image_id ? '照片加载中…' : '这条提醒没有照片'}
           </Text>
-        )}
-      </Card>
-      <Card style={styles.metaCard}>
-        <View style={styles.metaRow}>
-          <Text style={styles.metaKey}>日期</Text>
-          <Text style={styles.metaValue}>
-            {params.local_date ? formatDateCn(params.local_date) : '—'}
-          </Text>
         </View>
-        {isShedding ? (
-          <>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaKey}>判定</Text>
-              <Text style={styles.metaValue}>{label}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaKey}>置信度</Text>
-              <Text style={styles.metaValue}>
-                {confidence != null ? `${Math.round(confidence * 100)}%` : '—'}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <View style={styles.metaRow}>
-            <Text style={styles.metaKey}>类型</Text>
-            <Text style={styles.metaValue}>{label}</Text>
-          </View>
-        )}
-      </Card>
+      )}
+
+      <Divider />
+
+      <View style={styles.metaRow}>
+        <Text style={styles.metaKey}>日期</Text>
+        <Text style={styles.metaValue}>
+          {params.local_date ? formatDateCn(params.local_date) : '—'}
+        </Text>
+      </View>
+      <View style={[styles.metaRow, styles.metaDivider]}>
+        <Text style={styles.metaKey}>{isShedding ? '判定' : '类型'}</Text>
+        <Text style={styles.metaValue}>{label}</Text>
+      </View>
+
+      <Eyebrow>说明</Eyebrow>
+      <Text style={styles.note}>
+        这是设备自动拍到的，不需要你做任何操作。看到发白的皮时，把水盆加满、保持湿润就好，别帮它撕。
+      </Text>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   kindTitle: {
-    ...type.title,
+    ...type.display,
+    fontSize: 26,
+    lineHeight: 34,
     color: colors.foreground,
   },
   kindSubtitle: {
     ...type.bodySm,
     color: colors.mutedForeground,
   },
-  imageCard: { padding: space.sm },
   image: {
     width: '100%',
     height: 320,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.muted,
+  },
+  imageMissing: {
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
     backgroundColor: colors.muted,
   },
   missing: {
-    textAlign: 'center',
-    paddingVertical: space.xxxl,
     ...type.bodySm,
     color: colors.mutedForeground,
   },
-  metaCard: { gap: space.sm + 2 },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: space.md,
+  },
+  metaDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
   metaKey: { ...type.bodySm, color: colors.mutedForeground },
   metaValue: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
+  note: {
+    ...type.bodySm,
+    color: colors.body,
+  },
 });

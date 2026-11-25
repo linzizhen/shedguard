@@ -1,10 +1,18 @@
 /**
  * 卡皮风险评估（根级路由）：六道单选题 → POST /api/v1/risk-assessment → 结果。
+ * 纸感极简（P34）：题目用编号 + 1px 纸线分段，选项用方形标记而不是卡片框。
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
+import {
+  Divider,
+  Eyebrow,
+  Marker,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+} from '@/components/ui';
 import { useRiskAssessment } from '@/hooks/useRisk';
 import { colors, hairline, radius, space, type } from '@/lib/theme';
 import type { RiskAnswers, RiskAssessmentResult } from '@/lib/types';
@@ -79,11 +87,17 @@ const QUESTIONS: Question[] = [
 
 const LEVEL_META: Record<
   RiskAssessmentResult['level'],
-  { label: string; color: string; bg: string }
+  { label: string; tone: 'success' | 'warning' | 'danger' }
 > = {
-  low: { label: '风险较低', color: colors.success, bg: colors.successSoft },
-  moderate: { label: '需要留意', color: colors.warning, bg: colors.warningSoft },
-  high: { label: '高风险', color: colors.destructive, bg: colors.destructiveSoft },
+  low: { label: '风险较低', tone: 'success' },
+  moderate: { label: '需要留意', tone: 'warning' },
+  high: { label: '高风险', tone: 'danger' },
+};
+
+const TONE_COLOR: Record<'success' | 'warning' | 'danger', string> = {
+  success: colors.success,
+  warning: colors.warning,
+  danger: colors.destructive,
 };
 
 export default function RiskScreen() {
@@ -109,33 +123,40 @@ export default function RiskScreen() {
 
   if (result) {
     const meta = LEVEL_META[result.level];
+    const color = TONE_COLOR[meta.tone];
     return (
       <Screen>
         <Text style={styles.intro}>根据你的回答给出的风险提示，仅供参考，不替代看诊。</Text>
-        <Card style={{ gap: space.md }}>
-          <View style={[styles.levelBadge, { backgroundColor: meta.bg }]}>
-            <Text style={[styles.levelText, { color: meta.color }]}>{meta.label}</Text>
+
+        <Divider />
+
+        <View style={styles.levelRow}>
+          <Marker tone={meta.tone} />
+          <Text style={[styles.levelText, { color }]}>{meta.label}</Text>
+        </View>
+        <Text style={styles.scoreText}>风险评分 {result.score}</Text>
+
+        {result.factors.length > 0 ? (
+          <View style={styles.factorList}>
+            {result.factors.map((factor) => (
+              <View key={factor.key} style={styles.factorRow}>
+                <Text style={styles.factorPoints}>+{factor.points}</Text>
+                <Text style={styles.factorDetail}>{factor.detail}</Text>
+              </View>
+            ))}
           </View>
-          <Text style={styles.scoreText}>风险评分 {result.score}</Text>
-          {result.factors.length > 0 ? (
-            <View style={styles.factorList}>
-              {result.factors.map((factor) => (
-                <View key={factor.key} style={styles.factorRow}>
-                  <Text style={styles.factorPoints}>+{factor.points}</Text>
-                  <Text style={styles.factorDetail}>{factor.detail}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.factorEmpty}>没有发现明显的风险因素。</Text>
-          )}
-        </Card>
+        ) : (
+          <Text style={styles.factorEmpty}>没有发现明显的风险因素。</Text>
+        )}
+
         {result.vet_warning ? (
-          <Card tone="soft" style={styles.vetCard}>
-            <Text style={styles.vetTitle}>需要就医</Text>
+          <View style={styles.vetBlock}>
+            <Eyebrow>需要就医</Eyebrow>
             <Text style={styles.vetText}>{result.vet_warning}</Text>
-          </Card>
+          </View>
         ) : null}
+
+        <Divider />
         <SecondaryButton title="重新评估" onPress={handleReset} />
       </Screen>
     );
@@ -144,11 +165,15 @@ export default function RiskScreen() {
   return (
     <Screen>
       <Text style={styles.intro}>回答六个问题，看看蜕皮不全的风险。</Text>
+
+      <Divider />
+
       {QUESTIONS.map((question, qIndex) => (
-        <Card key={question.key} style={{ gap: space.md }}>
-          <Text style={styles.questionTitle}>
-            {qIndex + 1}. {question.title}
-          </Text>
+        <View key={question.key} style={styles.questionBlock}>
+          <View style={styles.questionHead}>
+            <Text style={styles.questionIndex}>{`0${qIndex + 1}`}</Text>
+            <Text style={styles.questionTitle}>{question.title}</Text>
+          </View>
           <View style={styles.optionList}>
             {question.options.map((option) => {
               const active = answers[question.key] === option.value;
@@ -156,11 +181,11 @@ export default function RiskScreen() {
                 <Pressable
                   key={option.value}
                   onPress={() => setAnswers((prev) => ({ ...prev, [question.key]: option.value }))}
-                  style={[styles.option, active && styles.optionActive]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
                 >
-                  <View style={[styles.radio, active && styles.radioActive]}>
-                    {active ? <View style={styles.radioDot} /> : null}
-                  </View>
+                  <View style={[styles.box, active && styles.boxActive]} />
                   <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>
                     {option.label}
                   </Text>
@@ -168,18 +193,14 @@ export default function RiskScreen() {
               );
             })}
           </View>
-        </Card>
+        </View>
       ))}
 
       {riskMutation.isError ? (
-        <Card>
-          <EmptyState
-            icon="alert-circle-outline"
-            title="提交失败"
-            subtitle={riskMutation.error.message}
-          />
-        </Card>
+        <Text style={styles.errorText}>提交失败：{riskMutation.error.message}</Text>
       ) : null}
+
+      <Divider />
 
       <PrimaryButton
         title={!allAnswered ? '请回答全部问题' : riskMutation.isPending ? '评估中…' : '开始评估'}
@@ -193,48 +214,55 @@ export default function RiskScreen() {
 
 const styles = StyleSheet.create({
   intro: { ...type.bodySm, color: colors.mutedForeground },
-  questionTitle: { ...type.heading, color: colors.foreground },
-  optionList: { gap: space.sm },
+  questionBlock: { gap: space.sm },
+  questionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: space.md,
+  },
+  questionIndex: {
+    ...type.caption,
+    fontWeight: '700',
+    color: colors.accent,
+    letterSpacing: 1,
+    width: 24,
+  },
+  questionTitle: { ...type.heading, flex: 1, color: colors.foreground },
+  optionList: { gap: 0, paddingLeft: 24 },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm,
-    borderWidth: hairline,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+    gap: space.md,
     paddingVertical: space.md,
-    paddingHorizontal: space.md,
-    minHeight: 52,
-    backgroundColor: colors.card,
+    minHeight: 44,
   },
-  optionActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  optionPressed: { opacity: 0.62 },
+  box: {
+    width: 12,
+    height: 12,
+    borderRadius: radius.xs,
     borderWidth: hairline,
-    borderColor: colors.faintForeground,
+    borderColor: colors.ghostForeground,
+  },
+  boxActive: {
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
+  },
+  optionLabel: { ...type.body, flex: 1, color: colors.mutedForeground },
+  optionLabelActive: { fontWeight: '600', color: colors.foreground },
+  levelRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: space.sm,
   },
-  radioActive: { borderColor: colors.primary },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
-  optionLabel: { ...type.body, flex: 1, color: colors.body },
-  optionLabelActive: { fontWeight: '700', color: colors.foreground },
-  levelBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: radius.pill,
-    paddingVertical: space.xs + 2,
-    paddingHorizontal: space.lg,
-  },
-  levelText: { ...type.heading },
-  scoreText: { ...type.bodySm, fontWeight: '700', color: colors.foreground },
+  levelText: { ...type.title },
+  scoreText: { ...type.bodySm, color: colors.mutedForeground },
   factorList: { gap: space.sm },
   factorRow: { flexDirection: 'row', gap: space.sm },
-  factorPoints: { ...type.bodySm, fontWeight: '800', color: colors.destructive, width: 32 },
+  factorPoints: { ...type.bodySm, fontWeight: '700', color: colors.accent, width: 32 },
   factorDetail: { ...type.bodySm, flex: 1, color: colors.body },
   factorEmpty: { ...type.bodySm, color: colors.mutedForeground },
-  vetCard: { borderColor: colors.destructive, gap: space.xs + 2 },
-  vetTitle: { ...type.heading, color: colors.destructive },
+  vetBlock: { gap: space.xs },
   vetText: { ...type.bodySm, color: colors.body },
+  errorText: { ...type.bodySm, color: colors.destructive },
 });

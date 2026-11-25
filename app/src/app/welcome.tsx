@@ -1,13 +1,20 @@
 /**
  * 首次使用向导：欢迎 → 给守宫起名字 → 准备拍照。
  * 目标：不懂技术的人也能走完，全程不出现「服务器」「置信度」这类词。
+ * 纸感极简（P34）：不用图标底座，靠大字标题、编号步骤与 1px 纸线分层。
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, Field, PrimaryButton, Screen, SecondaryButton } from '@/components/ui';
+import {
+  BrandBar,
+  Divider,
+  Field,
+  PrimaryButton,
+  Screen,
+  TextLink,
+} from '@/components/ui';
 import { useCreatePet } from '@/hooks/usePets';
 import { markOnboarded } from '@/lib/onboarding';
 import { saveServerUrl, useServerUrl } from '@/lib/serverUrl';
@@ -55,45 +62,45 @@ export default function WelcomeScreen() {
   if (needsAddress) {
     return (
       <Screen>
+        <BrandBar />
         <View style={styles.hero}>
-          <View style={styles.badge}>
-            <Ionicons name="link-outline" size={30} color={colors.primary} />
-          </View>
-          <Text style={styles.title}>先连上电脑</Text>
+          <Text style={styles.eyebrow}>第一次使用</Text>
+          <Text style={styles.title}>先连上服务端</Text>
           <Text style={styles.subtitle}>
             这个 App 需要和电脑上的一个小程序配合。把那个程序的地址填在下面（不知道就问帮你安装的人）。
           </Text>
         </View>
 
-        <Card style={{ gap: 14 }}>
-          <Field
-            label="电脑上那个程序的地址"
-            placeholder="例如 http://192.168.1.10:8000"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={addressDraft}
-            onChangeText={setAddressDraft}
-          />
-          <PrimaryButton
-            title="连一下"
-            onPress={() => void handleSaveAddress()}
-            disabled={addressDraft.trim().length === 0}
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-        </Card>
+        <Field
+          label="服务端地址"
+          placeholder="例如 http://192.168.1.10:8000"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={addressDraft}
+          onChangeText={setAddressDraft}
+        />
+        <PrimaryButton
+          title="连一下"
+          onPress={() => void handleSaveAddress()}
+          disabled={addressDraft.trim().length === 0}
+        />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <SecondaryButton title="先随便看看" onPress={() => void finish()} />
+        <Divider />
+        <TextLink title="先随便看看" onPress={() => void finish()} />
       </Screen>
     );
   }
 
   return (
     <Screen>
+      <BrandBar />
+
       <View style={styles.progress}>
         {STEPS.map((label, index) => (
           <View key={label} style={styles.progressItem}>
-            <View style={[styles.dot, index <= step && styles.dotActive]} />
-            <Text style={[styles.dotLabel, index === step && styles.dotLabelActive]}>{label}</Text>
+            <View style={[styles.tick, index <= step && styles.tickActive]} />
+            <Text style={[styles.tickLabel, index === step && styles.tickLabelActive]}>{label}</Text>
           </View>
         ))}
       </View>
@@ -101,86 +108,79 @@ export default function WelcomeScreen() {
       {step === 0 ? (
         <>
           <View style={styles.hero}>
-            <View style={styles.badge}>
-              <Ionicons name="paw" size={34} color={colors.primary} />
-            </View>
-            <Text style={styles.title}>让小守宫的蜕皮不再错过</Text>
+            <Text style={styles.eyebrow}>守宫蜕皮小助手</Text>
+            <Text style={styles.title}>别错过它蜕皮的那几天</Text>
             <Text style={styles.subtitle}>
               拍一张照片，它就会告诉你守宫是不是要蜕皮了。整个过程只要几秒。
             </Text>
           </View>
 
-          <Card style={{ gap: 12 }}>
-            <Text style={styles.cardTitle}>怎么用</Text>
+          <Divider />
+
+          <View style={styles.stepsBlock}>
             <Step text="把手机对准守宫身上发白的地方" index={1} />
             <Step text="点一下拍照，等几秒" index={2} />
             <Step text="看结果：正在蜕皮 / 还没到" index={3} />
-          </Card>
+          </View>
 
           <PrimaryButton title="开始" onPress={() => setStep(1)} />
-          <TextButton title="跳过" onPress={() => void finish()} />
+          <TextLink title="跳过" onPress={() => void finish()} />
         </>
       ) : null}
 
       {step === 1 ? (
         <>
           <View style={styles.hero}>
-            <View style={styles.badge}>
-              <Ionicons name="create-outline" size={30} color={colors.primary} />
-            </View>
+            <Text style={styles.eyebrow}>第 2 步</Text>
             <Text style={styles.title}>给它起个名字</Text>
             <Text style={styles.subtitle}>以后记录和提醒里都会用这个名字，随便起。</Text>
           </View>
 
-          <Card style={{ gap: 14 }}>
-            <Field
-              label="名字"
-              placeholder="比如：小橘子"
-              value={name}
-              maxLength={20}
-              onChangeText={setName}
-            />
+          <Field
+            label="名字"
+            placeholder="比如：小橘子"
+            value={name}
+            maxLength={20}
+            onChangeText={setName}
+          />
 
-            <View style={{ gap: 8 }}>
-              <Text style={styles.fieldLabel}>是哪一种（不确定就保持第一个）</Text>
-              <View style={styles.chips}>
-                {SPECIES.map((item) => {
-                  const active = item === species;
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => setSpecies(item)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      style={[styles.chip, active && styles.chipActive]}
-                    >
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+          <View style={styles.speciesBlock}>
+            <Text style={styles.eyebrow}>是哪一种（不确定就保持第一个）</Text>
+            <View style={styles.chips}>
+              {SPECIES.map((item) => {
+                const active = item === species;
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => setSpecies(item)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    style={[styles.chip, active && styles.chipActive]}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
+          </View>
 
-            <PrimaryButton
-              title="保存，下一步"
-              onPress={() => void handleSaveName()}
-              loading={createPet.isPending}
-              disabled={trimmedName.length === 0}
-            />
-            {trimmedName.length === 0 ? (
-              <Text style={styles.hint}>给它起个名字吧</Text>
-            ) : null}
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-          </Card>
+          <PrimaryButton
+            title="保存，下一步"
+            onPress={() => void handleSaveName()}
+            loading={createPet.isPending}
+            disabled={trimmedName.length === 0}
+          />
+          {trimmedName.length === 0 ? (
+            <Text style={styles.hint}>给它起个名字吧</Text>
+          ) : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </>
       ) : null}
 
       {step === 2 ? (
         <>
           <View style={styles.hero}>
-            <View style={styles.badge}>
-              <Ionicons name="checkmark" size={34} color={colors.primary} />
-            </View>
+            <Text style={styles.eyebrow}>第 3 步</Text>
             <Text style={styles.title}>准备好了</Text>
             <Text style={styles.subtitle}>
               {trimmedName.length > 0 ? `${trimmedName}的档案已经建好。` : '档案已经建好。'}
@@ -188,36 +188,26 @@ export default function WelcomeScreen() {
             </Text>
           </View>
 
-          <Card style={{ gap: 10 }}>
-            <Text style={styles.cardTitle}>拍照小提示</Text>
-            <Text style={styles.bullet}>· 光线要亮，别开闪光灯</Text>
-            <Text style={styles.bullet}>· 让守宫占满画面中间</Text>
-            <Text style={styles.bullet}>· 重点拍身上发白的地方</Text>
-          </Card>
+          <Divider />
+
+          <View style={styles.stepsBlock}>
+            <Text style={styles.bullet}>光线要亮，别开闪光灯</Text>
+            <Text style={styles.bullet}>让守宫占满画面中间</Text>
+            <Text style={styles.bullet}>重点拍身上发白的地方</Text>
+          </View>
 
           <PrimaryButton title="去拍第一张" onPress={() => void finish()} />
-          <TextButton title="稍后再说" onPress={() => void finish()} />
+          <TextLink title="稍后再说" onPress={() => void finish()} />
         </>
       ) : null}
     </Screen>
   );
 }
 
-/** 文字按钮：只做次要动作，不抢主按钮的注意力 */
-function TextButton({ title, onPress }: { title: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={styles.textButton}>
-      <Text style={styles.textButtonLabel}>{title}</Text>
-    </Pressable>
-  );
-}
-
 function Step({ text, index }: { text: string; index: number }) {
   return (
     <View style={styles.stepRow}>
-      <View style={styles.stepIndex}>
-        <Text style={styles.stepIndexText}>{index}</Text>
-      </View>
+      <Text style={styles.stepIndex}>{`0${index}`}</Text>
       <Text style={styles.stepText}>{text}</Text>
     </View>
   );
@@ -225,66 +215,48 @@ function Step({ text, index }: { text: string; index: number }) {
 
 const styles = StyleSheet.create({
   hero: {
-    marginTop: space.lg,
-    alignItems: 'center',
+    marginTop: space.xl,
     gap: space.md,
   },
-  badge: {
-    width: 84,
-    height: 84,
-    borderRadius: radius.xl,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+  eyebrow: {
+    ...type.label,
+    color: colors.faintForeground,
   },
   title: {
     ...type.display,
-    fontSize: 24,
-    lineHeight: 32,
     color: colors.foreground,
-    textAlign: 'center',
   },
   subtitle: {
     ...type.body,
     color: colors.mutedForeground,
-    textAlign: 'center',
-    paddingHorizontal: space.sm,
-  },
-  cardTitle: {
-    ...type.heading,
-    fontSize: 16,
-    color: colors.foreground,
+    maxWidth: 320,
   },
   bullet: {
     ...type.bodySm,
     color: colors.body,
   },
+  stepsBlock: {
+    gap: space.lg,
+  },
   stepRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
+    alignItems: 'baseline',
+    gap: space.md,
   },
   stepIndex: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepIndexText: {
     ...type.caption,
-    fontWeight: '800',
-    color: colors.primaryDark,
+    fontWeight: '700',
+    color: colors.accent,
+    letterSpacing: 1,
+    width: 24,
   },
   stepText: {
     flex: 1,
-    ...type.bodySm,
+    ...type.body,
     color: colors.body,
   },
-  fieldLabel: {
-    ...type.label,
-    color: colors.mutedForeground,
+  speciesBlock: {
+    gap: space.sm,
   },
   chips: {
     flexDirection: 'row',
@@ -296,68 +268,54 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: hairline,
     borderColor: colors.border,
-    backgroundColor: colors.card,
-    minHeight: 44,
+    minHeight: 42,
     justifyContent: 'center',
   },
   chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
   },
   chipText: {
     ...type.bodySm,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.mutedForeground,
   },
   chipTextActive: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
   },
   hint: {
     ...type.caption,
     color: colors.mutedForeground,
-    textAlign: 'center',
   },
   error: {
     ...type.bodySm,
     color: colors.destructive,
-    textAlign: 'center',
   },
   progress: {
     flexDirection: 'row',
-    justifyContent: 'center',
     gap: space.lg,
-    marginBottom: space.xs,
+    marginTop: space.lg,
   },
   progressItem: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 6,
+    flex: 1,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  tick: {
+    height: 2,
+    width: '100%',
     backgroundColor: colors.border,
   },
-  dotActive: {
-    backgroundColor: colors.primary,
+  tickActive: {
+    backgroundColor: colors.foreground,
   },
-  dotLabel: {
+  tickLabel: {
     ...type.caption,
     fontSize: 11,
-    color: colors.faintForeground,
+    color: colors.ghostForeground,
   },
-  dotLabelActive: {
-    color: colors.primaryDark,
+  tickLabelActive: {
+    color: colors.foreground,
     fontWeight: '700',
-  },
-  textButton: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textButtonLabel: {
-    ...type.bodySm,
-    fontWeight: '600',
-    color: colors.mutedForeground,
   },
 });

@@ -1,21 +1,25 @@
 /**
  * 蜕皮记录：最上面一条提醒，下面是「什么时候开始、什么时候蜕完」的时间线。
- * 文案全部口语化，不出现内部状态名。
+ * 文案全部口语化，不出现内部状态名。纸感极简（P34）：时间线靠 1px 竖线与方形标记分层，不用卡片框。
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-  Card,
+  Badge,
+  BrandBar,
+  Divider,
   EmptyState,
   Field,
+  IconButton,
+  Marker,
   PageHeader,
   PrimaryButton,
   Screen,
-  SecondaryButton,
-  SectionTitle,
+  TextLink,
+  Toggle,
 } from '@/components/ui';
 import { useAlerts } from '@/hooks/useAlerts';
 import { usePets } from '@/hooks/usePets';
@@ -25,11 +29,11 @@ import {
   useShedRecords,
   useUpdateShedRecord,
 } from '@/hooks/useShed';
-import { useDeviceId } from '@/lib/deviceId';
 import { todayIso } from '@/lib/dates';
+import { useDeviceId } from '@/lib/deviceId';
 import { alertTitle, recordLabel } from '@/lib/resultCopy';
 import { useServerUrl } from '@/lib/serverUrl';
-import { clayPress, colors, hairline, radius, shadow, space, type } from '@/lib/theme';
+import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
 import type { ShedRecord } from '@/lib/types';
 
 function shortDate(iso: string): string {
@@ -106,23 +110,19 @@ export default function LogScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
+        <BrandBar />
         <PageHeader title="蜕皮记录" subtitle="每次蜕皮记一条，方便回看" />
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="App 还没连上电脑"
-            subtitle="在「我的 → 高级设置」里填入电脑地址。"
-          />
-        </Card>
+        <EmptyState title="还没连上服务端" subtitle="在「我的 → 高级设置」里填入地址。" />
       </Screen>
     );
   }
 
   return (
     <Screen>
+      <BrandBar />
       <PageHeader
         title="蜕皮记录"
-        subtitle={pet ? `记录 ${pet.name} 的每一次蜕皮` : '每次蜕皮记一条'}
+        subtitle={pet ? `${pet.name}的每一次蜕皮` : '每次蜕皮记一条'}
       />
 
       {latestAlert ? (
@@ -136,39 +136,32 @@ export default function LogScreen() {
                 image_id: latestAlert.image_id ?? '',
                 state: latestAlert.state,
                 local_date: latestAlert.local_date,
-                confidence:
-                  latestAlert.confidence !== null ? String(latestAlert.confidence) : '',
+                confidence: latestAlert.confidence !== null ? String(latestAlert.confidence) : '',
               },
             })
           }
           accessibilityRole="button"
-          style={({ pressed }) => [styles.alertCard, pressed && clayPress]}
+          style={({ pressed }) => [styles.alertRow, pressed && clayPress]}
         >
-          <View style={styles.alertIcon}>
-            <Ionicons name="notifications" size={20} color={colors.primaryDark} />
-          </View>
+          <Marker />
           <View style={styles.alertBody}>
             <Text style={styles.alertTitle}>{alertTitle(latestAlert.kind, pet?.name)}</Text>
             <Text style={styles.alertMeta}>{shortDate(latestAlert.local_date)} · 点开看看</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.primaryDark} />
+          <Ionicons name="chevron-forward" size={17} color={colors.ghostForeground} />
         </Pressable>
       ) : null}
 
       {petId === '' ? (
-        <Card style={{ gap: space.md }}>
-          <EmptyState
-            icon="paw-outline"
-            title="还没有你的守宫"
-            subtitle="先建个档案，再来记录蜕皮"
-          />
+        <>
+          <EmptyState title="还没有你的守宫" subtitle="先建个档案，再来记录蜕皮" />
           <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
-        </Card>
+        </>
       ) : (
         <>
           {formOpen ? (
-            <Card style={{ gap: space.lg }}>
-              <Text style={styles.formTitle}>记一次蜕皮</Text>
+            <View style={styles.formBlock}>
+              <Text style={styles.eyebrow}>记一次蜕皮</Text>
               <Field
                 label="哪天开始蜕的"
                 placeholder="2026-11-12"
@@ -177,16 +170,11 @@ export default function LogScreen() {
                 autoCapitalize="none"
               />
               <View style={styles.switchRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.switchText}>
                   <Text style={styles.switchLabel}>已经蜕完了</Text>
                   <Text style={styles.switchHint}>还没蜕完就关着，之后再点「标记蜕完」</Text>
                 </View>
-                <Switch
-                  value={completed}
-                  onValueChange={setCompleted}
-                  trackColor={{ true: colors.primary, false: colors.border }}
-                  thumbColor="#FFFFFF"
-                />
+                <Toggle value={completed} onValueChange={setCompleted} />
               </View>
               <Field
                 label="备注（可不填）"
@@ -200,29 +188,29 @@ export default function LogScreen() {
                 onPress={() => void save()}
                 loading={createRecord.isPending}
               />
-              <SecondaryButton title="取消" onPress={() => setFormOpen(false)} />
+              <TextLink title="取消" onPress={() => setFormOpen(false)} />
               {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-            </Card>
+            </View>
           ) : (
-            <PrimaryButton title="添加一条记录" onPress={() => setFormOpen(true)} />
+            <PrimaryButton title="记一条新的" onPress={() => setFormOpen(true)} />
           )}
 
-          <SectionTitle>以前的记录</SectionTitle>
+          <Divider />
+
+          <View style={styles.sectionHead}>
+            <Text style={styles.eyebrow}>以前的记录</Text>
+            {records.length > 0 ? <Text style={styles.count}>{records.length} 条</Text> : null}
+          </View>
 
           {recordsQuery.isLoading ? (
-            <Card>
-              <EmptyState icon="hourglass-outline" title="加载中…" />
-            </Card>
+            <EmptyState title="加载中…" />
           ) : records.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon="calendar-outline"
-                title="还没有记录"
-                subtitle="守宫蜕皮时点上面那个按钮记一条，以后就能看出规律。"
-              />
-            </Card>
+            <EmptyState
+              title="还没有记录"
+              subtitle="守宫蜕皮时点上面那个按钮记一条，以后就能看出规律。"
+            />
           ) : (
-            <View style={styles.timeline}>
+            <View>
               {records.map((record, index) => (
                 <View key={record.id} style={styles.recordRow}>
                   <View style={styles.rail}>
@@ -232,28 +220,13 @@ export default function LogScreen() {
                   <View style={styles.recordBody}>
                     <View style={styles.recordHead}>
                       <Text style={styles.recordDate}>{shortDate(record.started_on)}</Text>
-                      <View
-                        style={[
-                          styles.statePill,
-                          record.completed_on ? styles.statePillDone : styles.statePillLive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statePillText,
-                            record.completed_on
-                              ? styles.statePillTextDone
-                              : styles.statePillTextLive,
-                          ]}
-                        >
-                          {recordLabel(record.completed_on)}
-                        </Text>
-                      </View>
+                      <Badge
+                        label={recordLabel(record.completed_on)}
+                        tone={record.completed_on ? 'neutral' : 'accent'}
+                      />
                     </View>
                     {record.completed_on ? (
-                      <Text style={styles.recordState}>
-                        蜕完于 {shortDate(record.completed_on)}
-                      </Text>
+                      <Text style={styles.recordState}>蜕完于 {shortDate(record.completed_on)}</Text>
                     ) : null}
                     {record.notes ? <Text style={styles.recordNotes}>{record.notes}</Text> : null}
                     <View style={styles.recordActions}>
@@ -279,6 +252,17 @@ export default function LogScreen() {
               ))}
             </View>
           )}
+
+          <Divider />
+
+          <View style={styles.extraRow}>
+            <IconButton
+              icon="book-outline"
+              title="养之前先看看"
+              onPress={() => router.push('/knowledge')}
+            />
+            <IconButton icon="camera-outline" title="萌照相册" onPress={() => router.push('/portraits')} />
+          </View>
         </>
       )}
     </Screen>
@@ -286,21 +270,13 @@ export default function LogScreen() {
 }
 
 const styles = StyleSheet.create({
-  alertCard: {
+  alertRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.lg,
-    padding: space.md + 2,
-  },
-  alertIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: space.md,
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.divider,
   },
   alertBody: {
     flex: 1,
@@ -308,20 +284,27 @@ const styles = StyleSheet.create({
   },
   alertTitle: {
     ...type.heading,
+    fontSize: 15,
     color: colors.foreground,
   },
   alertMeta: {
     ...type.caption,
-    color: colors.primaryDark,
+    color: colors.mutedForeground,
   },
-  formTitle: {
-    ...type.heading,
-    color: colors.foreground,
+  formBlock: {
+    gap: space.lg,
+  },
+  eyebrow: {
+    ...type.label,
+    color: colors.faintForeground,
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
+  },
+  switchText: {
+    flex: 1,
   },
   switchLabel: {
     ...type.body,
@@ -337,43 +320,45 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.destructive,
   },
-  timeline: {
-    gap: 0,
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  count: {
+    ...type.caption,
+    color: colors.ghostForeground,
   },
   recordRow: {
     flexDirection: 'row',
     gap: space.md,
   },
   rail: {
-    width: 12,
+    width: 10,
     alignItems: 'center',
-    paddingTop: space.lg,
+    paddingTop: space.lg + 4,
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
+    width: 7,
+    height: 7,
+    borderRadius: radius.xs,
+    backgroundColor: colors.ghostForeground,
   },
   dotLive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   railLine: {
     flex: 1,
     width: hairline,
-    backgroundColor: colors.border,
-    marginTop: space.xs,
+    backgroundColor: colors.divider,
+    marginTop: space.sm,
   },
   recordBody: {
     flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: hairline,
-    borderColor: colors.border,
-    padding: space.lg,
+    paddingVertical: space.lg,
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.divider,
     gap: space.xs,
-    marginBottom: space.md,
-    ...shadow.card,
   },
   recordHead: {
     flexDirection: 'row',
@@ -384,28 +369,6 @@ const styles = StyleSheet.create({
   recordDate: {
     ...type.heading,
     color: colors.foreground,
-  },
-  statePill: {
-    borderRadius: radius.pill,
-    paddingHorizontal: space.sm + 2,
-    paddingVertical: 3,
-  },
-  statePillDone: {
-    backgroundColor: colors.muted,
-  },
-  statePillLive: {
-    backgroundColor: colors.primarySoft,
-  },
-  statePillText: {
-    ...type.caption,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statePillTextDone: {
-    color: colors.mutedForeground,
-  },
-  statePillTextLive: {
-    color: colors.primaryDark,
   },
   recordState: {
     ...type.caption,
@@ -423,19 +386,19 @@ const styles = StyleSheet.create({
   },
   smallButton: {
     paddingHorizontal: space.md,
-    minHeight: 40,
+    minHeight: 36,
     justifyContent: 'center',
     borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.foreground,
   },
   smallButtonText: {
     ...type.caption,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: colors.onPrimary,
   },
   smallButtonGhost: {
     paddingHorizontal: space.md,
-    minHeight: 40,
+    minHeight: 36,
     justifyContent: 'center',
     borderRadius: radius.pill,
     borderWidth: hairline,
@@ -445,5 +408,9 @@ const styles = StyleSheet.create({
     ...type.caption,
     fontWeight: '600',
     color: colors.mutedForeground,
+  },
+  extraRow: {
+    flexDirection: 'row',
+    gap: space.sm,
   },
 });

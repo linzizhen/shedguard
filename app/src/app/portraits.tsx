@@ -1,17 +1,17 @@
 /**
  * 萌照相册：把设备这段时间拍到的照片按日期铺开。
+ * 纸感极简（P34）：去卡片框，图片直角小圆角，说明用 Marker + 一行小字。
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, PrimaryButton, Screen } from '@/components/ui';
+import { Divider, EmptyState, Marker, PrimaryButton, Screen } from '@/components/ui';
 import { usePets } from '@/hooks/usePets';
 import { usePortraitAlbum } from '@/hooks/usePortraits';
 import { ensureToken, portraitUrl } from '@/lib/auth';
 import { useServerUrl } from '@/lib/serverUrl';
-import { clayPress, colors, hairline, radius, space, type } from '@/lib/theme';
+import { clayPress, colors, radius, space, type } from '@/lib/theme';
 
 export default function PortraitsScreen() {
   const serverUrl = useServerUrl();
@@ -31,13 +31,7 @@ export default function PortraitsScreen() {
   if (serverUrl === '') {
     return (
       <Screen>
-        <Card>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="App 还没连上电脑"
-            subtitle="先回到「我的」，填好地址。"
-          />
-        </Card>
+        <EmptyState title="还没连上服务端" subtitle="先回到「我的」，填好地址。" />
       </Screen>
     );
   }
@@ -45,14 +39,8 @@ export default function PortraitsScreen() {
   if (pets.length === 0) {
     return (
       <Screen>
-        <Card style={{ gap: space.md }}>
-          <EmptyState
-            icon="paw-outline"
-            title="还没有你的守宫"
-            subtitle="先建个档案，设备才会开始拍"
-          />
-          <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
-        </Card>
+        <EmptyState title="还没有你的守宫" subtitle="先建个档案，设备才会开始拍" />
+        <PrimaryButton title="创建档案" onPress={() => router.push('/pet/new')} />
       </Screen>
     );
   }
@@ -61,13 +49,11 @@ export default function PortraitsScreen() {
     return (
       <Screen>
         <Text style={styles.subtitle}>设备每天会挑一张最好的留下来</Text>
-        <Card>
-          <EmptyState
-            icon="images-outline"
-            title="还没有照片"
-            subtitle="设备拍够几张后，这里就会出现。也可以在「萌照设置」里改成每天多拍几张。"
-          />
-        </Card>
+        <Divider />
+        <EmptyState
+          title="还没有照片"
+          subtitle="设备拍够几张后，这里就会出现。也可以在「萌照设置」里改成每天多拍几张。"
+        />
         <PrimaryButton title="去改萌照设置" onPress={() => router.push('/portrait-settings')} />
       </Screen>
     );
@@ -76,6 +62,7 @@ export default function PortraitsScreen() {
   return (
     <Screen>
       <Text style={styles.subtitle}>已经攒了 {shots.length} 张</Text>
+      <Divider />
       <View style={styles.grid}>
         {shots.map((shot) => (
           <Pressable
@@ -101,14 +88,15 @@ export default function PortraitsScreen() {
           </Pressable>
         ))}
       </View>
-      <Card style={styles.tip}>
-        <View style={styles.tipRow}>
-          <Ionicons name="camera-outline" size={18} color={colors.primaryDark} />
-          <Text style={styles.tipText}>
-            想要更好的照片？把摄像头放近一点，拍之前擦一下玻璃。
-          </Text>
-        </View>
-      </Card>
+
+      <Divider />
+
+      <View style={styles.tip}>
+        <Marker />
+        <Text style={styles.tipText}>
+          想要更好的照片？把摄像头放近一点，拍之前擦一下玻璃。
+        </Text>
+      </View>
     </Screen>
   );
 }
@@ -118,34 +106,29 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: space.sm + 2,
+    gap: space.md,
   },
   cell: {
-    width: '31%',
+    width: '30.5%',
     gap: space.xs,
   },
   image: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: radius.md,
-    borderWidth: hairline,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderRadius: radius.sm,
+    backgroundColor: colors.muted,
   },
   caption: { ...type.caption, color: colors.mutedForeground, textAlign: 'center' },
   imagePlaceholder: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: radius.md,
-    borderWidth: hairline,
-    borderColor: colors.border,
+    borderRadius: radius.sm,
     backgroundColor: colors.muted,
   },
-  tip: { paddingVertical: space.md },
-  tipRow: {
+  tip: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: space.sm,
   },
-  tipText: { ...type.caption, flex: 1, color: colors.body },
+  tipText: { ...type.caption, flex: 1, color: colors.faintForeground },
 });
