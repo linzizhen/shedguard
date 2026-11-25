@@ -1,5 +1,5 @@
 /**
- * 横向宠物选择 chips：当前选中橙色实底，其余白底。
+ * 横向宠物选择 chips：当前选中近黑实底，其余 1px 纸线描边。
  */
 import { ScrollView, StyleSheet, Text, Pressable } from 'react-native';
 
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     ...type.bodySm,
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   chipTextIdle: {
