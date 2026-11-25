@@ -184,6 +184,18 @@
 
 - **正确做法**：起一次 `$env:CI=1; npx expo start --web` 让它生成 `.expo/types/router.d.ts` 再 typecheck。
 
+### 8.7 react-native-web 的 `Switch` 开启态滑块不听 `thumbColor`
+
+- **现象**：纸感配色里开关打开后，轨道是近黑没错，但**滑块是青色 `#009688`**，在一片黑白里非常刺眼。
+- **根因**（`app/node_modules/react-native-web/dist/exports/Switch/index.js`）：
+  ```js
+  var thumbCurrentColor = value
+    ? activeThumbColor ?? defaultActiveThumbColor   // #009688
+    : thumbColor ?? defaultThumbColor;
+  ```
+  `thumbColor` **只在关闭态生效**；开启态只认 `activeThumbColor`，而 `activeThumbColor` 不在 RN 的类型定义里，所以 ts 也拦不住。
+- **正确做法**：收进 `components/ui.tsx` 的 `Toggle`，在 web 上补 `activeThumbColor`（用 `as unknown as SwitchProps` 绕过类型），**页面里不要直接用 RN 的 `Switch`**——各页各写一遍必漏一处。
+
 ---
 
 ## 9. 依赖与 CI（踩过 1 次，影响最大）
