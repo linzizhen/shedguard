@@ -96,6 +96,10 @@ class SheddingState:
 
     `state` 为 `unknown` 时，`confidence`、`probabilities`、`box` 都可能是 None ——
     表示这天有图，但没找到守宫或分类器没把握。
+
+    `quality_reason` 只在输入质量门开启且这张图没通过时才有值，说明「看不清」
+    具体是因为太糊、太暗、过曝还是没找到守宫。为 None 表示通过了质量门，
+    或者质量门当时是关闭的（旧数据也落在这个分支）。
     """
 
     image_id: str
@@ -109,3 +113,4 @@ class SheddingState:
     box: tuple[int, int, int, int] | None
     computed_at_utc: datetime
     state_version: str
+    quality_reason: str | None = None

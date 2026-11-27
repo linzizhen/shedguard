@@ -2,7 +2,7 @@
  * 面向普通用户的文案：把状态码翻译成一句人话结论 + 一句该怎么做。
  * 原则：不出现「置信度」「概率」「蒙白」「unknown」等术语。
  */
-import type { ShedState } from '@/lib/types';
+import type { QualityReason, ShedState } from '@/lib/types';
 
 export type ResultTone = 'good' | 'wait' | 'shedding' | 'unclear';
 
@@ -40,7 +40,36 @@ const COPY: Record<ShedState, ResultCopy> = {
   },
 };
 
-export function resultCopy(state: ShedState): ResultCopy {
+/** 输入质量门没通过时的针对性文案：说清是哪一种问题，而不是笼统「没看清」。 */
+const QUALITY_COPY: Record<QualityReason, ResultCopy> = {
+  too_blurry: {
+    tone: 'unclear',
+    headline: '这张有点糊',
+    advice: '手机拿稳一点，等它对上焦再拍一张。',
+    emojiIcon: 'help-circle',
+  },
+  too_dark: {
+    tone: 'unclear',
+    headline: '光线太暗了',
+    advice: '开个灯，或者把它拿到亮一点的地方再拍。',
+    emojiIcon: 'help-circle',
+  },
+  overexposed: {
+    tone: 'unclear',
+    headline: '太亮了，看不清',
+    advice: '避开直射的灯或者反光，再拍一张。',
+    emojiIcon: 'help-circle',
+  },
+  no_subject: {
+    tone: 'unclear',
+    headline: '没找到守宫',
+    advice: '把它放进取景框里，拍全身再试一次。',
+    emojiIcon: 'help-circle',
+  },
+};
+
+export function resultCopy(state: ShedState, qualityReason?: QualityReason | null): ResultCopy {
+  if (qualityReason) return QUALITY_COPY[qualityReason] ?? COPY.unknown;
   return COPY[state] ?? COPY.unknown;
 }
 

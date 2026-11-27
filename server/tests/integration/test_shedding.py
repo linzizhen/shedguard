@@ -104,7 +104,7 @@ def test_classify_returns_the_state(client: TestClient) -> None:
     assert body["confidence"] == pytest.approx(0.9, abs=1e-4)
     assert set(body["probabilities"]) == set(ALL_STATES)
     assert body["classifier_name"] == "fake-classifier"
-    assert body["state_version"] == "1"
+    assert body["state_version"] == "2"
     assert body["box"] is not None
 
 

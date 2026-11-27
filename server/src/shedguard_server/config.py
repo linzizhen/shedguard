@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     state_crop_padding: float = Field(
         default=DEFAULT_STATE_CROP_PADDING, ge=0.0, le=0.3
     )
+    # 输入质量门：默认关闭。现有测试大量用纯色块当上传图（拉普拉斯方差恒为 0），
+    # 一开门会集体失真；生产环境需在 .env 里显式设 SHEDGUARD_QUALITY_GATE_ENABLED=true。
+    quality_gate_enabled: bool = False
+    quality_min_sharpness: float = Field(default=25.0, ge=0.0)
+    quality_min_lightness: float = Field(default=18.0, ge=0.0, le=100.0)
+    quality_max_saturated: float = Field(default=0.20, ge=0.0, le=1.0)
+    quality_measure_size: int = Field(default=224, ge=64, le=1024)
     auto_process: bool = True
     push_enabled: bool = True
     expo_push_url: str = DEFAULT_EXPO_PUSH_URL

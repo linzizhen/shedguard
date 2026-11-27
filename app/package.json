@@ -36,7 +36,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
-    "test": "node src/lib/serverUrlInfer.test.ts",
+    "test": "node src/lib/serverUrlInfer.test.ts && node src/lib/resultCopy.test.ts",
     "lint": "expo lint"
   },
   "private": true

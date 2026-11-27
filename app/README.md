@@ -44,7 +44,7 @@ App 第一次打开会走三步向导（欢迎 → 给守宫起名字 → 准备
 
 | Tab | 功能 | 后端接口 |
 |-----|------|----------|
-| 拍照（首页） | 一个圆形大按钮「拍张照」+ 从相册选；结果只显示一句人话结论与建议，置信度与概率收进折叠的「看看更多细节」；有萌照时顶部显示「今天的萌照」卡片 | `POST /api/v1/pets/{id}/check-photo`、`GET /api/v1/pets/{id}/portraits/today` |
+| 拍照（首页） | 一个圆形大按钮「拍张照」+ 从相册选；结果只显示一句人话结论与建议，置信度与概率收进折叠的「看看更多细节」；**照片太糊 / 太暗 / 过曝 / 没拍到守宫时直接说「看不清」并给对应建议**（后端 `quality_reason` 驱动，不看模型概率）；有萌照时顶部显示「今天的萌照」卡片 | `POST /api/v1/pets/{id}/check-photo`、`GET /api/v1/pets/{id}/portraits/today` |
 | 蜕皮记录 | 顶部提醒横幅（蜕皮 / 设备离线 / 看不到守宫三类，点开看详情）、蜕皮时间线、记一次蜕皮 / 标记蜕完 / 删除、卡皮风险评估入口 | `GET /api/v1/alerts`、`GET/POST/PUT/DELETE /api/v1/pets/{id}/shed-records` |
 | 我的 | 我的守宫（列表 + 添加）、蜕皮提醒（摄像头编号 + 保存并开启通知）、萌照相册与萌照设置入口、蜕皮知识入口、卡皮检查入口、折叠的「高级设置」（服务器地址 + 重置身份） | `GET /healthz`、`/api/v1/pets` CRUD、`POST/DELETE /api/v1/devices` |
 | 萌照（首页 / 我的进入） | 每天的近景成品图，可「这张好看」/「不太满意」；相册按日期三列网格；设置里改开关、每天张数、起止时间 | `GET /api/v1/pets/{id}/portraits[/today]`、`POST /api/v1/portraits/{id}/feedback`、`GET/PUT /api/v1/pets/{id}/portrait-settings` |

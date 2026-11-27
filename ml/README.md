@@ -198,6 +198,28 @@ $env:PYTHONPATH="server\src"
 
 **顺带得到的可用结论（阈值）**：v2 在 `p(shedding) ≥ 0.80` 时测试准确率 0.9464、精确率 0.9643 都优于默认 argmax，说明「提醒线」比「分类 argmax」更适合往上提一点。但 P22 已证明模糊越重置信度越高，这条规则在退化图上传不住，所以**暂不改服务端默认值**，等真实机位数据再定（见 `docs/plan.md` §7）。
 
+## 输入质量门：标定与验收（P35，2026-11-25）
+
+服务端的输入质量门有四条判据（太糊 / 太暗 / 过曝 / 没拍到守宫），阈值全部由 `ml/eval_quality_gate.py` 标定，不是拍脑袋定的：
+
+```powershell
+$env:PYTHONPATH="server\src"
+$env:PYTHONIOENCODING="utf-8"
+# 全量：349 张 × 9 档退化 ≈ 3141 次推理，约 11 分钟
+.\.venv\Scripts\python.exe ml\eval_quality_gate.py --out .tmp\qg_full.json
+# 先跑 24 张看看通不通（约 47 秒）
+.\.venv\Scripts\python.exe ml\eval_quality_gate.py --limit 24 --json-only
+```
+
+脚本会做三件事：①按 9 档退化（`baseline`/`blur-3,5,7`/`bright-0.6,1.2`/`glare-strong`/`combo`/`frame-640`）跑真检测器 + 真分类器，记录每张图的四项质量指标与预测；②在 baseline 上扫 `sharpness` 单门阈值，报告「干净图误杀率 / 各档拦截率」；③把实测数字与 `docs/specs/2026-11-25-input-quality-gate-design.md` §5 的基线逐项对照（比率 ±0.02、漏检 ±1 张、p50 相对 ±2%），全部一致才算复现成功。实测 27 项全一致。
+
+**两条当时被实测否掉的候选**：
+
+- **主体占比门**：原本想加「守宫占画面至少多少」，但检测器会把框撑满画面，baseline 的 p05 已经 0.549，任何退化档几乎不变 → 没有判别力，砍掉。
+- **`L* ≥ 80` 当过曝指标**：浅色品系（白化、暴雪）大片高亮，baseline 的 max 到 0.619，会把好图误杀 → 换成「任一通道 ≥250 的像素占比」，baseline p95 只有 0.053。
+
+**必须记住的一条结论：门不会提高模型准确率。** 按档比较「被门拒掉」与「通过门」两组的模型错误率，多数档位被拒组反而更低（blur-7：被拒 11.6% vs 通过 21.2%）。原因是糊图让模型塌缩到预测 `normal`，而 `normal` 占数据 74%，被拒那批里多数真的是 normal。所以它的价值是「看不清时拒绝发言」，验收只能写成行为断言。
+
 ## 已知限制
 
 这些限制对两个模型都成立：
