@@ -38,12 +38,16 @@ export const colors = {
   divider: '#E9E4DA',
   /** 更浅的填充：输入框、折叠区、空态底座 */
   muted: '#F2EEE7',
-  /** 次要文字：对纸底 5.1:1 */
-  mutedForeground: '#7A766E',
-  /** 更弱的说明文字，只用于 ≥12px 的辅助信息 */
-  faintForeground: '#9A968E',
-  /** 最弱：Tab 未选中图标、占位符 */
-  ghostForeground: '#A8A49C',
+  /**
+   * 三档弱化文字（P37 重排，2026-11-27）。
+   * 原来三档相邻只差 0x08 左右，屏幕上分不出梯度；现在每档只承担一个角色，不得越级：
+   * - mutedForeground：说明 / 段落（配合 type.note 14px）
+   * - faintForeground：辅助提示 / 元信息（配合 type.hint 12.5px）
+   * - ghostForeground：占位符 / 未选中图标 / 已弱化到背景层的信息
+   */
+  mutedForeground: '#5F5B54',
+  faintForeground: '#8A857C',
+  ghostForeground: '#B5B0A6',
   destructive: '#B3261E',
   destructiveSoft: '#F7E4E1',
   success: '#3F6B45',
@@ -70,16 +74,38 @@ export const space = {
   xxs: 2,
   xs: 4,
   sm: 8,
+  /** 组内间距：同一件事的几行文字之间 */
+  tight: 12,
   md: 12,
   lg: 16,
   xl: 20,
   xxl: 24,
   xxxl: 32,
+  /** 组间间距：两件不同的事之间，必须明显大于 tight */
+  group: 40,
   /** 大段落之间 */
   huge: 48,
 } as const;
 
-/** 字号与行高：所有文本都从这里取，避免每屏各写一套 */
+/**
+ * 字号与行高：**九档，一档一个角色**，页面里不得出现任意字号。
+ *
+ * P37（2026-11-27）之前的问题：15 / 13.5 / 12.5 三档只差 1–1.5px，
+ * 手机上肉眼分不出二级与三级；13.5 这一档还同时兼了「段落说明」「列表副文案」
+ * 「表单提示」四种角色，层级自然塌掉。现在拆成：
+ *
+ * | 角色 | 令牌 | 字号/行高 | 灰阶 |
+ * |---|---|---|---|
+ * | 页面主标题 | display | 33/40 | foreground |
+ * | 结论 / 区块大标题 | title | 24/32 | foreground |
+ * | 卡片 / 行标题 | heading | 17/24 | foreground |
+ * | 正文 | body | 15/24 | body |
+ * | 说明（一段话） | note | 14/22 | mutedForeground |
+ * | 辅助（提示、元信息） | hint | 12.5/18 | faintForeground |
+ * | 标签（日期、计数） | caption | 12/18 | faintForeground / ghost |
+ * | 分组小标题 | label | 11/16 | faintForeground |
+ * | 按钮文字 | button | 15/22 | 见按钮 |
+ */
 export const type = {
   /** 页面主标题：大字重、负字距，纸感的骨架 */
   display: { fontSize: 33, lineHeight: 40, fontWeight: '700' as const, letterSpacing: -1 },
@@ -89,10 +115,14 @@ export const type = {
   heading: { fontSize: 17, lineHeight: 24, fontWeight: '700' as const, letterSpacing: -0.2 },
   /** 正文 */
   body: { fontSize: 15, lineHeight: 24, fontWeight: '400' as const },
-  /** 紧凑正文（列表第二行） */
-  bodySm: { fontSize: 13.5, lineHeight: 21, fontWeight: '400' as const },
-  /** 说明文字 */
-  caption: { fontSize: 12.5, lineHeight: 19, fontWeight: '500' as const },
+  /** 说明：一段连贯的话（原 bodySm，13.5 提到 14，与辅助档拉开 1.5px） */
+  note: { fontSize: 14, lineHeight: 22, fontWeight: '400' as const },
+  /** 兼容旧名：bodySm 就是 note，不许再单独调它的字号 */
+  bodySm: { fontSize: 14, lineHeight: 22, fontWeight: '400' as const },
+  /** 辅助：一行提示、元信息、列表副文案 */
+  hint: { fontSize: 12.5, lineHeight: 18, fontWeight: '400' as const },
+  /** 标签：日期、计数、徽章文字（只给短语，不给句子） */
+  caption: { fontSize: 12, lineHeight: 18, fontWeight: '500' as const },
   /** 分组小标题：大写字母 + 大字距，纸感的关键细节 */
   label: { fontSize: 11, lineHeight: 16, fontWeight: '700' as const, letterSpacing: 2 },
   /** 按钮文字 */
