@@ -39,6 +39,14 @@ ADVICE_BY_STATE: dict[str, str] = {
     ),
 }
 
+#: 输入质量门拒绝时的针对性建议。键与 `domain.quality.QualityReason` 一一对应。
+ADVICE_BY_QUALITY: dict[str, str] = {
+    "too_blurry": "画面太糊了，手机拿稳一点、等它对上焦再拍一张。",
+    "too_dark": "光线太暗，看不清皮肤。开个灯或者拿到亮一点的地方再拍。",
+    "overexposed": "画面太亮，皮肤细节被光吃掉了。避开直射灯或反光再拍一张。",
+    "no_subject": "画面里没找到守宫。把它放进取景框，拍全身再试一次。",
+}
+
 
 class _UploadOutcomeLike(Protocol):
     """ingest 的返回值只需要 record 字段。"""
@@ -346,11 +354,17 @@ class CheckPhotoService:
         record = outcome.record
         image_id = str(record.id)
         state_obj = self._shedding.analyze(image_id, now=moment)
-        advice = ADVICE_BY_STATE.get(state_obj.state, ADVICE_BY_STATE["unknown"])
+        reason = state_obj.quality_reason
+        if reason is not None:
+            # 质量门拒了这张图：给针对性的重拍建议，比笼统的「重新拍一张」有用。
+            advice = ADVICE_BY_QUALITY.get(reason, ADVICE_BY_STATE["unknown"])
+        else:
+            advice = ADVICE_BY_STATE.get(state_obj.state, ADVICE_BY_STATE["unknown"])
         return PetCheckResult(
             image_id=image_id,
             state=state_obj.state,
             confidence=state_obj.confidence,
             probabilities=state_obj.probabilities,
             advice=advice,
+            quality_reason=reason,
         )

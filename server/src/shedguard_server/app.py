@@ -309,6 +309,15 @@ def create_app(settings: Settings | None = None, *, create_data_dir: bool = True
             instance.state.migration_error = exc
             logger.exception("数据库迁移失败")
         logger.info("服务启动 data_dir=%s", settings.data_dir)
+        if settings.quality_gate_enabled:
+            logger.info(
+                "输入质量门已启用 sharpness>=%s lightness>=%s saturated<=%s",
+                settings.quality_min_sharpness,
+                settings.quality_min_lightness,
+                settings.quality_max_saturated,
+            )
+        else:
+            logger.info("输入质量门未启用，模糊或过暗的照片仍会交给模型判定")
         health_task: asyncio.Task[None] | None = None
         if settings.health_monitor_enabled:
             health_task = asyncio.create_task(

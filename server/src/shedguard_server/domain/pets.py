@@ -51,10 +51,15 @@ class ShedPrediction:
 
 @dataclass(frozen=True, slots=True)
 class PetCheckResult:
-    """一次拍照查验的聚合结果。"""
+    """一次拍照查验的聚合结果。
+
+    `quality_reason` 非空表示这张图被输入质量门拒了（太糊/太暗/过曝/没找到守宫），
+    此时 `state` 恒为 `unknown`，且分类器根本没跑过。
+    """
 
     image_id: str
     state: str
     confidence: float | None
     probabilities: dict[str, float] | None
     advice: str
+    quality_reason: str | None = None

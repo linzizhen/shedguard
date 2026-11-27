@@ -171,6 +171,7 @@ class SheddingStateRow(Base):
     box_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     computed_at_utc: Mapped[str] = mapped_column(String(40), nullable=False)
     state_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    quality_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     __table_args__ = (
         Index("ix_shedding_states_device_date", "device_id", "local_date"),

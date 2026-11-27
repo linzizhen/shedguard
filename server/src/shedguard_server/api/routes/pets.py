@@ -304,5 +304,6 @@ async def check_photo(
             "confidence": round(result.confidence, 4) if result.confidence is not None else None,
             "probabilities": probabilities,
             "advice": result.advice,
+            "quality_reason": result.quality_reason,
         }
     )

@@ -8,8 +8,17 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Final
 
 from shedguard_server.domain.detection import Detection, Detector
+from shedguard_server.domain.imaging import ImageFrame
 from shedguard_server.domain.judgement import validate_range
 from shedguard_server.domain.models import ImageRecord, SheddingState
+from shedguard_server.domain.quality import (
+    DEFAULT_MAX_SATURATED,
+    DEFAULT_MIN_LIGHTNESS,
+    DEFAULT_MIN_SHARPNESS,
+    MEASURE_SIZE,
+    QualityReason,
+    evaluate_quality,
+)
 from shedguard_server.domain.shedding import (
     DailyState,
     ShedEventDetected,
@@ -32,7 +41,8 @@ from shedguard_server.infra.repository import ImageRepository, SheddingStateRepo
 from shedguard_server.infra.storage import LocalStorage
 
 #: 状态定义版本。改变判定规则时递增，旧记录会被重算。
-STATE_VERSION: Final = "1"
+#: v2：新增输入质量门（看不清的图记 unknown + quality_reason）。
+STATE_VERSION: Final = "2"
 
 #: 每日投票固定输出这三个键，即使某类当天为零。
 VOTE_KEYS: Final[tuple[ShedState, ...]] = (
@@ -67,6 +77,11 @@ class SheddingService:
         *,
         min_confidence: float = 0.6,
         crop_padding: float = 0.08,
+        quality_gate: bool = False,
+        quality_min_sharpness: float = DEFAULT_MIN_SHARPNESS,
+        quality_min_lightness: float = DEFAULT_MIN_LIGHTNESS,
+        quality_max_saturated: float = DEFAULT_MAX_SATURATED,
+        quality_measure_size: int = MEASURE_SIZE,
     ) -> None:
         self._images = images
         self._states = states
@@ -75,6 +90,11 @@ class SheddingService:
         self._classifier = classifier
         self._min_confidence = min_confidence
         self._crop_padding = crop_padding
+        self._quality_gate = quality_gate
+        self._quality_min_sharpness = quality_min_sharpness
+        self._quality_min_lightness = quality_min_lightness
+        self._quality_max_saturated = quality_max_saturated
+        self._quality_measure_size = quality_measure_size
 
     def analyze(self, image_id: str, *, now: datetime | None = None) -> SheddingState:
         record = self._images.find_by_id(image_id)
@@ -107,6 +127,9 @@ class SheddingService:
                 box=None,
                 computed_at=computed_at,
                 classifier_name=classifier.name,
+                quality_reason=(
+                    QualityReason.NO_SUBJECT.value if self._quality_gate else None
+                ),
             )
         else:
             box = crop_box(
@@ -115,13 +138,42 @@ class SheddingService:
                 height=frame.height,
                 padding=self._crop_padding,
             )
-            prediction = classifier.classify(crop_frame(frame, box))
-            state = self._from_prediction(
-                record, detection, prediction, box, computed_at, classifier.name
-            )
+            crop = crop_frame(frame, box)
+            reason = self._check_quality(crop)
+            if reason is not None:
+                # 看不清就不让分类器发言：记 unknown 并说明原因，
+                # 避免模型对一张糊图给出一个高置信度的错误结论。
+                state = self._build(
+                    record,
+                    state=ShedState.UNKNOWN,
+                    confidence=None,
+                    probabilities=None,
+                    box=box,
+                    computed_at=computed_at,
+                    classifier_name=classifier.name,
+                    quality_reason=reason.value,
+                )
+            else:
+                prediction = classifier.classify(crop)
+                state = self._from_prediction(
+                    record, detection, prediction, box, computed_at, classifier.name
+                )
 
         self._states.save(state)
         return state
+
+    def _check_quality(self, crop: ImageFrame) -> QualityReason | None:
+        """质量门关闭时恒返回 None，不产生任何额外计算。"""
+        if not self._quality_gate:
+            return None
+        verdict = evaluate_quality(
+            crop,
+            min_sharpness=self._quality_min_sharpness,
+            min_lightness=self._quality_min_lightness,
+            max_saturated=self._quality_max_saturated,
+            measure_size=self._quality_measure_size,
+        )
+        return verdict.reason
 
     def series(self, *, device_id_raw: str, start: date, end: date) -> SheddingReport:
         device_id = validate_device_id(device_id_raw)
@@ -198,6 +250,7 @@ class SheddingService:
         box: tuple[int, int, int, int] | None,
         computed_at: datetime,
         classifier_name: str,
+        quality_reason: str | None = None,
     ) -> SheddingState:
         return SheddingState(
             image_id=record.id,
@@ -211,4 +264,5 @@ class SheddingService:
             box=box,
             computed_at_utc=computed_at,
             state_version=STATE_VERSION,
+            quality_reason=quality_reason,
         )

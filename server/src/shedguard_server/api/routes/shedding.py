@@ -48,6 +48,11 @@ def get_shedding_service(
         classifier,
         min_confidence=settings.state_min_confidence,
         crop_padding=settings.state_crop_padding,
+        quality_gate=settings.quality_gate_enabled,
+        quality_min_sharpness=settings.quality_min_sharpness,
+        quality_min_lightness=settings.quality_min_lightness,
+        quality_max_saturated=settings.quality_max_saturated,
+        quality_measure_size=settings.quality_measure_size,
     )
 
 
