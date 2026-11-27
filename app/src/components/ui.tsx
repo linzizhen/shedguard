@@ -22,6 +22,7 @@ import {
   type StyleProp,
   type SwitchProps,
   type TextInputProps,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,6 +75,40 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 
 /** 兼容旧名：SectionTitle 等同 Eyebrow */
 export const SectionTitle = Eyebrow;
+
+/**
+ * 说明文字：一段连贯的话（14/22，中灰）。
+ * **不要拿它做标题**，也不要和 Hint 混用——职责只有「解释刚才那件事」。
+ */
+export function Note({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.note, style]}>{children}</Text>;
+}
+
+/** 辅助文字：一行提示、元信息（12.5/18，浅灰）。只放短语，不放整段话。 */
+export function Hint({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.hint, style]}>{children}</Text>;
+}
+
+/**
+ * 分组容器：**组间 40 留白 + Eyebrow 标题 + 组内 12 行距**。
+ * 一屏里有两件以上的事时用它，靠留白分组，不靠边框或卡片。
+ */
+export function Group({
+  title,
+  children,
+  style,
+}: {
+  title?: string;
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[styles.group, style]}>
+      {title ? <Text style={styles.eyebrow}>{title}</Text> : null}
+      <View style={styles.groupBody}>{children}</View>
+    </View>
+  );
+}
 
 /** 页面标题：大字 + 一行说明（纸感的主视觉靠它撑） */
 export function PageHeader({
@@ -392,7 +427,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xxl,
     paddingTop: space.sm,
     paddingBottom: space.huge,
-    gap: space.lg,
+    gap: space.xxl,
   },
   staticContent: {
     flex: 1,
@@ -407,8 +442,7 @@ const styles = StyleSheet.create({
     marginBottom: space.xs,
   },
   brandText: {
-    fontSize: 11,
-    fontWeight: '700',
+    ...type.label,
     letterSpacing: 2.6,
     color: colors.faintForeground,
   },
@@ -425,9 +459,26 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   pageSubtitle: {
-    ...type.body,
+    ...type.note,
     color: colors.mutedForeground,
     maxWidth: 320,
+  },
+  note: {
+    ...type.note,
+    color: colors.mutedForeground,
+  },
+  hint: {
+    ...type.hint,
+    color: colors.faintForeground,
+  },
+  group: {
+    // Screen 的 contentContainerStyle 已有 24 的基础间距；这里再补 16，
+    // 两件不同的事之间视觉上是 40（space.group），既符合刻度也不会叠成 64 那么散。
+    marginTop: space.lg,
+    gap: space.md,
+  },
+  groupBody: {
+    gap: space.tight,
   },
   block: {
     gap: space.md,
@@ -545,13 +596,13 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   rowTitle: {
-    ...type.heading,
-    fontSize: 16,
+    ...type.body,
+    fontWeight: '600',
     color: colors.foreground,
   },
   rowHint: {
-    ...type.caption,
-    color: colors.mutedForeground,
+    ...type.hint,
+    color: colors.faintForeground,
   },
   badge: {
     alignSelf: 'flex-start',

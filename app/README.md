@@ -87,19 +87,20 @@ app/
 
 ## 视觉规范
 
-**方向：纸感极简（P34，2026-11-25）**。全部样式从 `src/lib/theme.ts` 的令牌取值，**页面里不写字面量**。
+**方向：纸感极简（P34，2026-11-25；P37 重排层级，2026-11-27）**。全部样式从 `src/lib/theme.ts` 的令牌取值，**页面里不写字面量**。
 
-这套视觉的三条硬规则：
+这套视觉的四条硬规则：
 
 1. **没有卡片边框，也没有阴影**。分层只靠留白、1px 纸线、字号层级。
 2. **唯一彩色是琥珀 `accent #C08A45`**，只用在 8px 方形 `Marker` 与序号上，不做大色块。
 3. **主按钮是近黑实心胶囊**，次按钮是 1px 纸线胶囊，轻操作用下划线文字链接。
+4. **字号九档、一档一个角色，不许越级；灰阶三档，一档只干一件事**（P37）。一屏只允许一个 `display`；说明文字一律 `note`，一行提示一律 `hint`。
 
 | 令牌 | 内容 |
 |---|---|
-| `colors` | 纸白 `background #FBF9F6`、卡片 `card #FFFFFF`、近黑 `foreground #14140F`（主文字与主按钮底）、正文 `body #2A2A22`、唯一彩色 `accent #C08A45` 与其浅底 `accentSoft #F6EFE2`、纸线 `border #E4DFD5` 与 `divider #E9E4DA`、灰阶三档 `mutedForeground #7A766E` / `faintForeground #9A968E` / `ghostForeground #A8A49C`、语义色 `success/warning/destructive` 各带 `*Soft` 浅底 |
-| `space` | 8pt 栅格：`xxs 2 / xs 4 / sm 8 / md 12 / lg 16 / xl 20 / xxl 24 / xxxl 32 / huge 48` |
-| `type` | `display 33/40 w700` / `title 24/32 w700` / `heading 17/24 w700` / `body 15/24` / `bodySm 13.5/21` / `caption 12.5/19 w500` / `label 11/16 w700 字距 2` / `button 15/22 w700` |
+| `colors` | 纸白 `background #FBF9F6`、卡片 `card #FFFFFF`、近黑 `foreground #14140F`（主文字与主按钮底）、正文 `body #2A2A22`、唯一彩色 `accent #C08A45` 与其浅底 `accentSoft #F6EFE2`、纸线 `border #E4DFD5` 与 `divider #E9E4DA`、灰阶三档 **`mutedForeground #5F5B54`（说明）/ `faintForeground #8A857C`（辅助）/ `ghostForeground #B5B0A6`（占位）**、语义色 `success/warning/destructive` 各带 `*Soft` 浅底 |
+| `space` | 8pt 栅格 + 两级语义间距：`xxs 2 / xs 4 / sm 8 / **tight 12（组内）** / md 12 / lg 16 / xl 20 / xxl 24 / xxxl 32 / **group 40（组间）** / huge 48` |
+| `type` | `display 33/40 w700` / `title 24/32 w700` / `heading 17/24 w700` / `body 15/24` / **`note 14/22`（段落说明）** / **`hint 12.5/18`（一行提示、元信息）** / `caption 12/18 w500`（只做标签）/ `label 11/16 w700 字距 2` / `button 15/22 w700`；`bodySm` 只是 `note` 的旧别名 |
 | `radius` | `xs 2`（方形标记）/ `sm 6` / `md 10` / `lg 14` / `xl 20` / `pill 999` |
 | `shadow` | `card` 全透明（保留键名，视觉上无阴影）；`raised` 只给首页那颗 172px 大圆按钮 |
 | `hairline` | 统一 1px |
@@ -107,6 +108,8 @@ app/
 组件约定（`src/components/ui.tsx`）：
 
 - `BrandBar` 顶栏 + `Eyebrow` 分组标题（大写 + 2px 字距）是这套视觉最容易被认出的细节。
+- **文字一律用 `Note`（说明，14/22 中灰）或 `Hint`（辅助，12.5/18 浅灰）**，不要自己写 `<Text style={{fontSize}}>`；两者不可互换，`Hint` 只放短语。
+- **分组用 `Group`**（`title` 走 Eyebrow、组内 12；它自己只加 `marginTop: 16`，与 `Screen` 的 24 基础间距叠成实际 40），不要用 `Divider` 或空行分组。
 - `Card` 默认 `plain` = 无边框无阴影；`soft` 是浅灰填充；`outline` 才用 1px 纸线。
 - `Field` 是**下划线输入**（只有底边线，无边框无底色）。
 - `Badge` 是 1px 细边胶囊 + 透明底，不是色块。
