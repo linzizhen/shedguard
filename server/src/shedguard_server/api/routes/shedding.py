@@ -79,6 +79,7 @@ def serialize_state(state: SheddingState) -> dict[str, Any]:
         "box": list(state.box) if state.box is not None else None,
         "computed_at_utc": state.computed_at_utc.isoformat(),
         "state_version": state.state_version,
+        "quality_reason": state.quality_reason,
     }
 
 

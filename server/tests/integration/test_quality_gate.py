@@ -7,8 +7,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import cv2
 import httpx
@@ -55,11 +56,15 @@ def checker(cell: int = 8) -> np.ndarray:
 class _FakeClassifier:
     """固定输出 shedding 的分类器替身。"""
 
+    def __init__(self) -> None:
+        self.calls = 0
+
     @property
     def name(self) -> str:
         return "fake-classifier"
 
     def classify(self, _frame: ImageFrame) -> StatePrediction:
+        self.calls += 1
         return StatePrediction(
             state=ShedState.SHEDDING,
             confidence=0.9,
@@ -78,8 +83,8 @@ class _BlindDetector:
         return None
 
 
-def _settings(workdir: Path, *, gate: bool) -> Settings:
-    return Settings(
+def _settings(workdir: Path, *, gate: bool, **overrides: Any) -> Settings:
+    base = Settings(
         _env_file=None,  # type: ignore[call-arg]
         data_dir=workdir / "data",
         db_url=None,
@@ -94,10 +99,14 @@ def _settings(workdir: Path, *, gate: bool) -> Settings:
         auto_process=False,
         quality_gate_enabled=gate,
     )
+    return base.model_copy(update=overrides) if overrides else base
 
 
-def _client(workdir: Path, *, gate: bool) -> Iterator[TestClient]:
-    app = create_app(_settings(workdir, gate=gate))
+@contextmanager
+def _app_client(
+    workdir: Path, *, gate: bool, **overrides: Any
+) -> Iterator[TestClient]:
+    app = create_app(_settings(workdir, gate=gate, **overrides))
     with TestClient(app) as test_client:
         test_client.app.state.state_classifier = _FakeClassifier()  # type: ignore[attr-defined]
         yield test_client
@@ -108,13 +117,19 @@ def _client(workdir: Path, *, gate: bool) -> Iterator[TestClient]:
 @pytest.fixture()
 def gated(workdir: Path) -> Iterator[TestClient]:
     """质量门打开。"""
-    yield from _client(workdir, gate=True)
+    with _app_client(workdir, gate=True) as client:
+        yield client
 
 
 @pytest.fixture()
 def ungated(workdir: Path) -> Iterator[TestClient]:
     """质量门关闭（默认行为）。"""
-    yield from _client(workdir, gate=False)
+    with _app_client(workdir, gate=False) as client:
+        yield client
+
+
+def _classifier(client: TestClient) -> _FakeClassifier:
+    return cast(_FakeClassifier, client.app.state.state_classifier)  # type: ignore[attr-defined]
 
 
 def _pet(client: TestClient) -> str:
@@ -150,6 +165,8 @@ class TestGateRejects:
         assert body["confidence"] is None
         assert body["probabilities"] is None
         assert "糊" in str(body["advice"])
+        # 被拒时不该浪费一次推理
+        assert _classifier(gated).calls == 0
 
     def test_dark_texture_is_too_dark(self, gated: TestClient) -> None:
         """把棋盘格整体压暗：边缘还在（清晰度够），但整体亮度低于 18。
@@ -218,3 +235,42 @@ class TestGateStateVersion:
         from shedguard_server.services.shedding import STATE_VERSION
 
         assert STATE_VERSION == "2"
+
+
+class TestSignatureInvalidatesCache:
+    """同一张图，改了判定参数就必须重算。
+
+    `ingest` 按 SHA-256 去重，同一张照片永远复用同一个 `image_id`；而缓存
+    以前只比版本号和分类器名字。于是「开着门拍糊了 → 关掉门再拍同一张」
+    会原样拿到 `unknown/too_blurry`，App 一直显示「这张有点糊」。
+    """
+
+    def test_toggling_gate_recomputes(self, workdir: Path) -> None:
+        picture = solid()
+
+        with _app_client(workdir, gate=True) as gated:
+            first = _check(gated, _pet(gated), picture)
+        with _app_client(workdir, gate=False) as ungated:
+            second = _check(ungated, _pet(ungated), picture)
+
+        # 同一张照片，确实复用了同一个 image_id
+        assert second["image_id"] == first["image_id"]
+        assert first["quality_reason"] == "too_blurry"
+        # 关掉门之后必须重算，不能把「这张有点糊」原样吐回来
+        assert second["state"] == "shedding"
+        assert second["quality_reason"] is None
+        assert second["confidence"] == pytest.approx(0.9, abs=1e-4)
+
+    def test_changing_threshold_recomputes(self, workdir: Path) -> None:
+        picture = checker()
+
+        with _app_client(
+            workdir, gate=True, quality_min_sharpness=100000.0
+        ) as strict:
+            first = _check(strict, _pet(strict), picture)
+        with _app_client(workdir, gate=True) as loose:
+            second = _check(loose, _pet(loose), picture)
+
+        assert second["image_id"] == first["image_id"]
+        assert first["quality_reason"] == "too_blurry"
+        assert second["quality_reason"] is None

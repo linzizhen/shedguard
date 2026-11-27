@@ -95,6 +95,21 @@ class SheddingService:
         self._quality_min_lightness = quality_min_lightness
         self._quality_max_saturated = quality_max_saturated
         self._quality_measure_size = quality_measure_size
+        self._pipeline_signature = self._build_signature()
+
+    def _build_signature(self) -> str:
+        """把「影响判定结果的参数」压成一个短指纹，用于缓存失效。
+
+        只要这里的任何一项改了，旧结论就不能再用 —— 否则关掉质量门之后，
+        同一张照片还会从缓存里拿到「这张有点糊」。
+        """
+        gate = "on" if self._quality_gate else "off"
+        return (
+            f"v{STATE_VERSION}|gate={gate}|s={self._quality_min_sharpness:g}"
+            f"|l={self._quality_min_lightness:g}|t={self._quality_max_saturated:g}"
+            f"|n={self._quality_measure_size}"
+            f"|c={self._min_confidence:g}|p={self._crop_padding:g}"
+        )
 
     def analyze(self, image_id: str, *, now: datetime | None = None) -> SheddingState:
         record = self._images.find_by_id(image_id)
@@ -110,6 +125,7 @@ class SheddingService:
             existing is not None
             and existing.state_version == STATE_VERSION
             and existing.classifier_name == classifier.name
+            and existing.pipeline_signature == self._pipeline_signature
         ):
             return existing
 
@@ -265,4 +281,5 @@ class SheddingService:
             computed_at_utc=computed_at,
             state_version=STATE_VERSION,
             quality_reason=quality_reason,
+            pipeline_signature=self._pipeline_signature,
         )
