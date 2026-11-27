@@ -15,8 +15,11 @@ import {
   BrandBar,
   Divider,
   EmptyState,
+  Group,
+  Hint,
   IconButton,
   Marker,
+  Note,
   PageHeader,
   PrimaryButton,
   Screen,
@@ -175,35 +178,41 @@ export default function HomeScreen() {
         }
       />
 
-      <PageHeader
-        title="今天看一眼"
-        subtitle={
-          activePet
+      <View style={styles.pageHead}>
+        <Text style={styles.pageTitle}>今天看一眼</Text>
+        <Note style={styles.pageSubtitle}>
+          {activePet
             ? `${activePet.name}的皮肤有没有发白，拍一张就知道。`
-            : '它的皮肤有没有发白，拍一张就知道。'
-        }
-      />
+            : '它的皮肤有没有发白，拍一张就知道。'}
+        </Note>
+      </View>
 
       {pets.length > 1 ? (
-        <View style={styles.chips}>
-          {pets.map((pet) => {
-            const active = pet.id === activePetId;
-            return (
-              <Pressable
-                key={pet.id}
-                onPress={() => setSelectedPetId(pet.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[styles.chip, active && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{pet.name}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Group>
+          <View style={styles.chips}>
+            {pets.map((pet) => {
+              const active = pet.id === activePetId;
+              return (
+                <Pressable
+                  key={pet.id}
+                  onPress={() => setSelectedPetId(pet.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{pet.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Group>
       ) : null}
 
-      <View style={styles.shutterWrap}>
+      <View style={styles.shutterBlock}>
+        <Hint style={styles.shutterHint}>
+          {busy ? '正在看照片…（大约 3 秒）' : '对准它、靠近一点，光线亮一点更准'}
+        </Hint>
+
         <Pressable
           onPress={() => void shoot('camera')}
           disabled={busy}
@@ -214,14 +223,15 @@ export default function HomeScreen() {
           <Ionicons name="camera-outline" size={32} color={colors.onPrimary} />
           <Text style={styles.shutterText}>{busy ? '正在看…' : '拍照'}</Text>
         </Pressable>
-        <Text style={styles.shutterHint}>
-          {busy ? '正在看照片…（大约 3 秒）' : '对准它，靠近一点\n光线亮的时候更准'}
-        </Text>
-      </View>
 
-      <View style={styles.actionRow}>
-        <IconButton icon="image-outline" title="从相册选" onPress={() => void shoot('library')} />
-        <IconButton icon="videocam-outline" title="接摄像头" onPress={() => router.push('/cameras')} />
+        <View style={styles.actionRow}>
+          <IconButton icon="image-outline" title="从相册选" onPress={() => void shoot('library')} />
+          <IconButton
+            icon="videocam-outline"
+            title="接摄像头"
+            onPress={() => router.push('/cameras')}
+          />
+        </View>
       </View>
 
       {errorText ? (
@@ -242,7 +252,7 @@ export default function HomeScreen() {
             />
           </View>
           <Text style={styles.headline}>{copy.headline}</Text>
-          <Text style={styles.advice}>{copy.advice}</Text>
+          <Note>{copy.advice}</Note>
 
           <View style={styles.resultActions}>
             <PrimaryButton title="再拍一张" onPress={() => void shoot('camera')} disabled={busy} />
@@ -276,9 +286,9 @@ export default function HomeScreen() {
                 ? Object.entries(lastResult.probabilities)
                     .sort((a, b) => b[1] - a[1])
                     .map(([key, value]) => (
-                      <Text key={key} style={styles.detailLine}>
+                      <Hint key={key}>
                         {DETAIL_LABEL[key as ShedState] ?? key}：{Math.round(value * 100)}%
-                      </Text>
+                      </Hint>
                     ))
                 : null}
               <Text style={styles.detailNote}>这些数字仅供了解，不影响上面那句结论。</Text>
@@ -297,37 +307,37 @@ export default function HomeScreen() {
           <Image source={{ uri: portraitUrl(todayShot.id) }} style={styles.portraitThumb} />
           <View style={styles.portraitText}>
             <Text style={styles.portraitTitle}>今天的萌照</Text>
-            <Text style={styles.portraitHint}>点开看看，不满意可以换一张</Text>
+            <Hint>点开看看，不满意可以换一张</Hint>
           </View>
           <Ionicons name="chevron-forward" size={17} color={colors.ghostForeground} />
         </Pressable>
       ) : null}
 
-      <Divider />
-
-      <View style={styles.sectionHead}>
-        <Text style={styles.eyebrow}>上一次</Text>
-        <TextLink title="全部记录" onPress={() => router.push('/log')} />
-      </View>
-
-      {latestAlert ? (
-        <View style={styles.lastBlock}>
-          <View style={styles.lastTitleRow}>
-            <Marker />
-            <Text style={styles.lastTitle}>{alertTitle(latestAlert.kind, activePet?.name ?? null)}</Text>
-          </View>
-          <Text style={styles.lastBody}>
-            {latestAlert.kind === 'shedding_detected'
-              ? '记得把水盆加满，保持湿润。别去帮它撕。'
-              : '点开看看具体情况。'}
-          </Text>
-          <Text style={styles.lastTime}>{shortMoment(latestAlert.created_at_utc)}</Text>
+      <Group>
+        <View style={styles.sectionHead}>
+          <Text style={styles.eyebrow}>上一次</Text>
+          <TextLink title="全部记录" onPress={() => router.push('/log')} />
         </View>
-      ) : (
-        <Text style={styles.lastEmpty}>
-          还没有提醒。拍一张，或者接上摄像头让它自己盯着。
-        </Text>
-      )}
+
+        {latestAlert ? (
+          <View style={styles.lastBlock}>
+            <View style={styles.lastTitleRow}>
+              <Marker />
+              <Text style={styles.lastTitle}>
+                {alertTitle(latestAlert.kind, activePet?.name ?? null)}
+              </Text>
+            </View>
+            <Note>
+              {latestAlert.kind === 'shedding_detected'
+                ? '记得把水盆加满，保持湿润。别去帮它撕。'
+                : '点开看看具体情况。'}
+            </Note>
+            <Text style={styles.lastTime}>{shortMoment(latestAlert.created_at_utc)}</Text>
+          </View>
+        ) : (
+          <Hint>还没有提醒。拍一张，或者接上摄像头让它自己盯着。</Hint>
+        )}
+      </Group>
     </Screen>
   );
 }
@@ -340,6 +350,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pageHead: {
+    marginTop: space.lg,
+    gap: space.tight,
+  },
+  pageTitle: {
+    ...type.display,
+    color: colors.foreground,
+  },
+  pageSubtitle: {
+    maxWidth: 320,
   },
   chips: {
     flexDirection: 'row',
@@ -366,11 +387,11 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.onPrimary,
   },
-  shutterWrap: {
+  shutterBlock: {
     alignItems: 'center',
-    gap: space.lg,
-    paddingTop: space.xxl,
-    paddingBottom: space.sm,
+    gap: space.xxxl,
+    paddingTop: space.xxxl,
+    paddingBottom: space.xxxl,
   },
   shutter: {
     width: 172,
@@ -386,20 +407,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   shutterText: {
+    ...type.button,
     color: colors.onPrimary,
-    fontSize: 15,
-    fontWeight: '700',
     letterSpacing: 1.6,
   },
   shutterHint: {
-    ...type.caption,
-    color: colors.faintForeground,
     textAlign: 'center',
-    lineHeight: 20,
   },
   actionRow: {
     flexDirection: 'row',
     gap: space.sm,
+    alignSelf: 'stretch',
   },
   errorBox: {
     flexDirection: 'row',
@@ -410,12 +428,12 @@ const styles = StyleSheet.create({
     padding: space.lg,
   },
   errorText: {
-    ...type.bodySm,
+    ...type.note,
     flex: 1,
     color: colors.destructive,
   },
   resultBlock: {
-    gap: space.md,
+    gap: space.tight,
     paddingTop: space.xs,
   },
   resultTop: {
@@ -430,10 +448,6 @@ const styles = StyleSheet.create({
   headline: {
     ...type.title,
     color: colors.foreground,
-  },
-  advice: {
-    ...type.body,
-    color: colors.body,
   },
   resultActions: {
     flexDirection: 'row',
@@ -459,13 +473,12 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   detailLine: {
-    ...type.caption,
+    ...type.note,
     color: colors.body,
   },
   detailNote: {
-    ...type.caption,
-    fontSize: 11.5,
-    color: colors.faintForeground,
+    ...type.hint,
+    color: colors.ghostForeground,
     marginTop: space.xs,
   },
   portraitRow: {
@@ -482,16 +495,11 @@ const styles = StyleSheet.create({
   },
   portraitText: {
     flex: 1,
-    gap: 2,
+    gap: space.xxs,
   },
   portraitTitle: {
     ...type.heading,
-    fontSize: 15,
     color: colors.foreground,
-  },
-  portraitHint: {
-    ...type.caption,
-    color: colors.mutedForeground,
   },
   sectionHead: {
     flexDirection: 'row',
@@ -499,8 +507,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   lastBlock: {
-    gap: space.xs,
-    paddingBottom: space.lg,
+    gap: space.tight,
   },
   lastTitleRow: {
     flexDirection: 'row',
@@ -511,19 +518,9 @@ const styles = StyleSheet.create({
     ...type.heading,
     color: colors.foreground,
   },
-  lastBody: {
-    ...type.bodySm,
-    color: colors.mutedForeground,
-  },
   lastTime: {
-    ...type.caption,
-    fontSize: 11.5,
+    ...type.hint,
     color: colors.ghostForeground,
     letterSpacing: 0.3,
-  },
-  lastEmpty: {
-    ...type.bodySm,
-    color: colors.faintForeground,
-    paddingBottom: space.lg,
   },
 });

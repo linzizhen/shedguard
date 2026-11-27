@@ -7,7 +7,7 @@ import type { PropsWithChildren } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
-import { colors, hairline } from '@/lib/theme';
+import { colors, hairline, type } from '@/lib/theme';
 
 /** Tab 图标：RN 0.88 的 color 参数类型是 ColorValue（可为 null），此处收窄为 string */
 function TabIcon({
@@ -24,7 +24,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.foreground,
-        tabBarInactiveTintColor: colors.ghostForeground,
+        tabBarInactiveTintColor: colors.faintForeground,
         tabBarStyle: {
           backgroundColor: colors.background,
           borderTopColor: colors.divider,
@@ -36,7 +36,7 @@ export default function TabsLayout() {
           elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 10.5,
+          ...type.label,
           fontWeight: '600',
           letterSpacing: 0.4,
         },
