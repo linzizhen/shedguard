@@ -27,7 +27,9 @@
 - P22–P24（工程加固）：鲁棒性标定、照片保留策略、请求限流（后两者默认关闭）——已完成。
 - P25（萌照）：每日自动近景选片与成品图——已完成。
 - P29（数据贡献）：自愿分享、自动上传到私有收件箱、撤回与打包——已完成。
-- P30（摄像头接入）：RTSP/萤石云适配器、定时抓拍、失败兜底与脱敏——已完成。当前 57 个配置项、520 个测试、覆盖率 93.14%。
+- P30（摄像头接入）：RTSP/萤石云适配器、定时抓拍、失败兜底与脱敏——已完成。
+- P33（公网可达）：托管前端构建产物，同一地址既是页面也是接口——已完成。
+- P35（输入质量门）：太糊/太暗/过曝/没拍到守宫时直接回「看不清」+ 原因——已完成，默认关闭。当前 **64 个配置项、551 个测试、覆盖率 93.79%**。
 
 ## 运行
 
@@ -258,11 +260,28 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `normal` | 体色正常，没有蜕皮迹象 | 分类器 |
 | `opaque` | 蒙白：体色发白、图案对比度下降，皮还完整 | 分类器 |
 | `shedding` | 蜕皮中：皮正在脱落 | 分类器 |
-| `unknown` | 判断不了 | 服务层：未检出守宫，或最高置信度低于 `SHEDGUARD_STATE_MIN_CONFIDENCE` |
+| `unknown` | 判断不了 | 服务层：未检出守宫、最高置信度低于 `SHEDGUARD_STATE_MIN_CONFIDENCE`、或没过输入质量门 |
 
 `unknown` 不是模型的输出类别。分类器永远只能输出具体状态，降级到 `unknown` 由服务层做——这样「模型没把握」和「模型认为正常」不会被混为一谈。降级时 `confidence` 为 `null`，但 `probabilities` 完整保留，便于排查模型到底看到了什么。
 
-同一张图重复调用返回既有结果，幂等键是 `(state_version, classifier_name)`：换了模型会重新识别，不换就复用。
+#### 输入质量门
+
+打开 `SHEDGUARD_QUALITY_GATE_ENABLED` 后，服务层在**分类器之前**先量一遍裁剪图，任一条不达标就直接回 `unknown` 并带上 `quality_reason`，不让模型去猜：
+
+| 原因 | 判据 | 建议 |
+|---|---|---|
+| `too_blurry` | 灰度拉普拉斯方差 `< SHEDGUARD_QUALITY_MIN_SHARPNESS`（默认 25） | 拿稳、等对上焦 |
+| `too_dark` | CIE L\* 均值 `< SHEDGUARD_QUALITY_MIN_LIGHTNESS`（默认 18） | 开灯或换个亮处 |
+| `overexposed` | 任一通道 ≥250 的像素占比 `> SHEDGUARD_QUALITY_MAX_SATURATED`（默认 0.20） | 避开直射灯与反光 |
+| `no_subject` | 检测器没找到守宫 | 把它放进取景框 |
+
+指标统一在「检测框外扩 8% 后缩放到 `SHEDGUARD_QUALITY_MEASURE_SIZE`（默认 224）」的图上算，与分类器看到的输入一致。
+
+**注意：这道门的作用是「看不清时拒绝发言」，不是提高准确率。** 实测（`ml/eval_quality_gate.py`）显示，被门拒掉的那批图里模型的错误率并不比通过的更高——糊图会让模型塌缩到预测 `normal`，而 `normal` 在数据集里占 74%。所以验收只能写成行为断言（纯色块必须被拒、棋盘格必须通过），不能写成「准确率提升」。
+
+**默认关闭**：现有测试大量用纯色块当上传图（拉普拉斯方差恒为 0），一开门会集体被拒。生产与演示环境请在 `.env` 里显式设 `SHEDGUARD_QUALITY_GATE_ENABLED=true`，启动日志会打印「输入质量门已启用/未启用」。
+
+同一张图重复调用返回既有结果，幂等键是 `(state_version, classifier_name)`：换了模型或改了判定规则都会重新识别（质量门落地时 `state_version` 已从 `1` 升到 `2`），不换就复用。
 
 ### 查询逐日状态
 
@@ -576,6 +595,11 @@ curl.exe -X PUT http://127.0.0.1:8000/api/v1/shed-events/cam-1/2026-11-05 -H "Co
 | `SHEDGUARD_STATE_MODEL` | 空 | ONNX 状态分类模型路径；为空则识别接口返回 503 |
 | `SHEDGUARD_STATE_MIN_CONFIDENCE` | `0.6` | 低于此置信度降级为 `unknown`（0–1） |
 | `SHEDGUARD_STATE_CROP_PADDING` | `0.08` | 按检测框裁剪时的外扩比例（0–0.3） |
+| `SHEDGUARD_QUALITY_GATE_ENABLED` | `false` | 是否启用输入质量门；**默认关**，演示与生产要显式打开 |
+| `SHEDGUARD_QUALITY_MIN_SHARPNESS` | `25.0` | 灰度拉普拉斯方差下限，低于则判 `too_blurry`（≥0） |
+| `SHEDGUARD_QUALITY_MIN_LIGHTNESS` | `18.0` | CIE L\* 均值下限，低于则判 `too_dark`（0–100） |
+| `SHEDGUARD_QUALITY_MAX_SATURATED` | `0.20` | 近白像素（任一通道 ≥250）占比上限，超过判 `overexposed`（0–1） |
+| `SHEDGUARD_QUALITY_MEASURE_SIZE` | `224` | 量质量前把裁剪图缩放到多少边长（64–1024） |
 | `SHEDGUARD_AUTO_PROCESS` | `true` | 上传成功后自动跑指标与状态判定 |
 | `SHEDGUARD_PUSH_ENABLED` | `true` | 是否启用 Expo 推送；关时提醒仍入库但标记 skipped |
 | `SHEDGUARD_EXPO_PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Expo Push 接口地址 |
