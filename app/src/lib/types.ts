@@ -21,12 +21,16 @@ export interface PetListResponse {
 
 export type ShedState = 'normal' | 'opaque' | 'shedding' | 'unknown';
 
+/** 输入质量门拒绝的原因；非 null 表示这张图根本没送进分类器 */
+export type QualityReason = 'too_blurry' | 'too_dark' | 'overexposed' | 'no_subject';
+
 export interface CheckPhotoResult {
   image_id: string;
   state: ShedState;
   confidence: number | null;
   probabilities: Record<string, number> | null;
   advice: string;
+  quality_reason: QualityReason | null;
 }
 
 // ---------- 蜕皮日志（/api/v1/pets/{id}/shed-records） ----------

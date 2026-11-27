@@ -51,7 +51,9 @@ const TONE_LABEL: Record<string, string> = {
   shedding: '正在蜕皮',
   wait: '快蜕皮了',
   good: '状态正常',
-  unclear: '没看清',
+  // 徽标要能配上四条质量原因（太糊/太暗/过曝/没找到守宫），所以不能写「没看清」——
+  // 「没找到守宫」+「没看清」会自相矛盾，用中性的「先重拍」。
+  unclear: '先重拍',
 };
 
 /** 把 ISO 时间转成「今天 08:24 / 11月18日 08:24」 */
@@ -153,7 +155,7 @@ export default function HomeScreen() {
     );
   }
 
-  const copy = lastResult ? resultCopy(lastResult.state) : null;
+  const copy = lastResult ? resultCopy(lastResult.state, lastResult.quality_reason) : null;
   const busy = checkMutation.isPending;
 
   return (
