@@ -104,10 +104,33 @@ def evaluate_quality(
     阈值全部由调用方传入，这里不读配置 —— 保持纯函数，便于单测与标定脚本对齐。
     """
     metrics = measure_quality(frame, measure_size=measure_size)
+    return QualityVerdict(
+        reason=reason_from_metrics(
+            metrics,
+            min_sharpness=min_sharpness,
+            min_lightness=min_lightness,
+            max_saturated=max_saturated,
+        ),
+        metrics=metrics,
+    )
+
+
+def reason_from_metrics(
+    metrics: QualityMetrics,
+    *,
+    min_sharpness: float = DEFAULT_MIN_SHARPNESS,
+    min_lightness: float = DEFAULT_MIN_LIGHTNESS,
+    max_saturated: float = DEFAULT_MAX_SATURATED,
+) -> QualityReason | None:
+    """只看指标下结论，不碰图像。
+
+    单独拆出来是为了让标定脚本 `ml/eval_quality_gate.py` 直接复用同一份判定
+    顺序 —— 两份实现各写一遍，改了一处忘了另一处，标定出来的阈值就与线上不符。
+    """
     if metrics.sharpness < min_sharpness:
-        return QualityVerdict(reason=QualityReason.TOO_BLURRY, metrics=metrics)
+        return QualityReason.TOO_BLURRY
     if metrics.lightness < min_lightness:
-        return QualityVerdict(reason=QualityReason.TOO_DARK, metrics=metrics)
+        return QualityReason.TOO_DARK
     if metrics.saturated > max_saturated:
-        return QualityVerdict(reason=QualityReason.OVEREXPOSED, metrics=metrics)
-    return QualityVerdict(reason=None, metrics=metrics)
+        return QualityReason.OVEREXPOSED
+    return None
