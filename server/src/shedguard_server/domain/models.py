@@ -100,6 +100,9 @@ class SheddingState:
     `quality_reason` 只在输入质量门开启且这张图没通过时才有值，说明「看不清」
     具体是因为太糊、太暗、过曝还是没找到守宫。为 None 表示通过了质量门，
     或者质量门当时是关闭的（旧数据也落在这个分支）。
+
+    `pipeline_signature` 是「这次判定用了哪套参数」的指纹（版本 + 质量门开关与
+    三条阈值 + 测量边长）。切换配置后指纹不同，缓存就不会被误命中，图片会重算。
     """
 
     image_id: str
@@ -114,3 +117,4 @@ class SheddingState:
     computed_at_utc: datetime
     state_version: str
     quality_reason: str | None = None
+    pipeline_signature: str | None = None

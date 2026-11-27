@@ -378,6 +378,7 @@ def _to_shedding_state(row: SheddingStateRow) -> SheddingState:
         computed_at_utc=_parse_utc(row.computed_at_utc),
         state_version=row.state_version,
         quality_reason=row.quality_reason,
+        pipeline_signature=row.pipeline_signature,
     )
 
 
@@ -399,6 +400,7 @@ def _to_shedding_state_row(state: SheddingState) -> SheddingStateRow:
         computed_at_utc=state.computed_at_utc.isoformat(),
         state_version=state.state_version,
         quality_reason=state.quality_reason,
+        pipeline_signature=state.pipeline_signature,
     )
 
 
